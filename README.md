@@ -9,7 +9,18 @@ the screen. Shoot a carrier and it **drops the drum** — which falls safely bac
 to the ground if it survives the trip. Lose all your drums (or all your lives)
 and it's game over.
 
-## Run it
+## Download
+
+Prebuilt binaries for Linux, macOS (Intel + Apple Silicon) and Windows are
+attached to each [GitHub Release](../../releases). They're built automatically
+by the `Release` workflow whenever a `v*` tag is pushed:
+
+```sh
+git tag v0.1.0
+git push origin v0.1.0     # → CI builds all platforms and publishes the release
+```
+
+## Run it (from source)
 
 ```sh
 cargo run --release
