@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Moon Bugs
+GenericName=Arcade Game
+Comment=Defend your fuel drums from swooping alien bugs
+Exec=moonbugs
+Icon=moonbugs
+Terminal=false
+Categories=Game;ArcadeGame;
+Keywords=arcade;shooter;retro;moon;
