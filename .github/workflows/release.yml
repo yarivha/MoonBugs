@@ -23,10 +23,10 @@ jobs:
         include:
           - os: ubuntu-latest
             label: linux-x86_64
-          - os: macos-13      # Intel
-            label: macos-x86_64
-          - os: macos-14      # Apple Silicon
-            label: macos-aarch64
+          # One Apple Silicon runner builds a *universal* binary (Intel +
+          # Apple Silicon via lipo), so no scarce Intel macOS runner is needed.
+          - os: macos-14
+            label: macos-universal
           - os: windows-latest
             label: windows-x86_64
     steps:
@@ -48,7 +48,10 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             libx11-dev libxi-dev libgl1-mesa-dev libasound2-dev
 
+      # macOS builds both arches itself (see the macOS package step); every
+      # other platform builds natively here.
       - name: Build release
+        if: runner.os != 'macOS'
         run: cargo build --release
 
       # ---- Package per platform into a single uploadable archive ----------
@@ -66,12 +69,21 @@ jobs:
           tar -czf "$DIST.tar.gz" "$DIST"
           echo "ASSET=$DIST.tar.gz" >> "$GITHUB_ENV"
 
-      - name: Package (macOS)
+      - name: Package (macOS universal)
         if: runner.os == 'macOS'
         shell: bash
         run: |
           DIST="moonbugs-${{ github.ref_name }}-${{ matrix.label }}"
-          ./tools/bundle_macos.sh
+          # Build both architectures and fuse them into one universal binary.
+          rustup target add x86_64-apple-darwin aarch64-apple-darwin
+          cargo build --release --target x86_64-apple-darwin
+          cargo build --release --target aarch64-apple-darwin
+          lipo -create -output moonbugs-universal \
+            target/x86_64-apple-darwin/release/moonbugs \
+            target/aarch64-apple-darwin/release/moonbugs
+          lipo -info moonbugs-universal
+          # Bundle the universal binary into MoonBugs.app (with its icon).
+          MOONBUGS_BIN="$PWD/moonbugs-universal" ./tools/bundle_macos.sh
           # ditto preserves the .app bundle structure inside the zip.
           ditto -c -k --keepParent dist/MoonBugs.app "$DIST.zip"
           echo "ASSET=$DIST.zip" >> "$GITHUB_ENV"

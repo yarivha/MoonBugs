@@ -18,8 +18,16 @@ ROOT="$(pwd)"
 APP="$ROOT/dist/MoonBugs.app"
 NAME="MoonBugs"
 
-echo "==> Building release binary"
-cargo build --release
+# Use a prebuilt binary if MOONBUGS_BIN is set (e.g. a universal binary from
+# CI); otherwise build a release binary for the host architecture.
+if [ -n "${MOONBUGS_BIN:-}" ]; then
+  echo "==> Using prebuilt binary: $MOONBUGS_BIN"
+  BIN="$MOONBUGS_BIN"
+else
+  echo "==> Building release binary"
+  cargo build --release
+  BIN="$ROOT/target/release/moonbugs"
+fi
 
 echo "==> Generating AppIcon.icns from assets/icon.png"
 ICONSET="$(mktemp -d)/AppIcon.iconset"
@@ -36,7 +44,7 @@ iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
 
 echo "==> Assembling bundle structure"
 mkdir -p "$APP/Contents/MacOS"
-cp "$ROOT/target/release/$NAME" "$APP/Contents/MacOS/$NAME"
+cp "$BIN" "$APP/Contents/MacOS/$NAME"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
