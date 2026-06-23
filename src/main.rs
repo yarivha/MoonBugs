@@ -66,6 +66,7 @@ const BULLET_SPEED: f32 = 640.0;
 const GRAVITY: f32 = 540.0;
 const NUM_DRUMS: usize = 5;
 const START_LIVES: i32 = 3;
+const MAX_LIVES: i32 = 5; // extra-life power-ups cap here so hearts fit the HUD
 const DRUM_W: f32 = 24.0;
 const DRUM_H: f32 = 28.0;
 const POWERUP_CHANCE: f32 = 0.16; // chance a killed bug drops a power-up
@@ -78,6 +79,18 @@ fn ground_y() -> f32 {
 }
 fn player_y() -> f32 {
     ground_y() - PLAYER_H
+}
+
+// Draw a heart centered at (cx, cy): two top lobes plus a bottom point.
+fn draw_heart(cx: f32, cy: f32, s: f32, color: Color) {
+    draw_circle(cx - s * 0.5, cy - s * 0.35, s * 0.6, color);
+    draw_circle(cx + s * 0.5, cy - s * 0.35, s * 0.6, color);
+    draw_triangle(
+        vec2(cx - s * 1.02, cy - s * 0.05),
+        vec2(cx + s * 1.02, cy - s * 0.05),
+        vec2(cx, cy + s * 1.15),
+        color,
+    );
 }
 
 // ---- Weapons ---------------------------------------------------------------
@@ -106,11 +119,12 @@ impl Weapon {
 }
 
 // ---- Power-ups -------------------------------------------------------------
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 enum PowerKind {
     Rapid,
     Spread,
     Shield,
+    ExtraLife,
 }
 
 impl PowerKind {
@@ -119,6 +133,7 @@ impl PowerKind {
             PowerKind::Rapid => Color::new(1.0, 0.85, 0.2, 1.0),
             PowerKind::Spread => Color::new(0.3, 0.9, 1.0, 1.0),
             PowerKind::Shield => Color::new(0.6, 1.0, 0.5, 1.0),
+            PowerKind::ExtraLife => Color::new(1.0, 0.4, 0.45, 1.0),
         }
     }
     fn glyph(self) -> &'static str {
@@ -126,6 +141,7 @@ impl PowerKind {
             PowerKind::Rapid => "R",
             PowerKind::Spread => "S",
             PowerKind::Shield => "+",
+            PowerKind::ExtraLife => "", // drawn as a heart instead of text
         }
     }
 }
@@ -471,6 +487,9 @@ impl Game {
             PowerKind::Shield => {
                 self.shield_timer = SHIELD_DURATION;
             }
+            PowerKind::ExtraLife => {
+                self.lives = (self.lives + 1).min(MAX_LIVES);
+            }
         }
     }
 
@@ -709,10 +728,13 @@ impl Game {
         for (pos, color) in kills {
             self.burst(pos, color, 16, 130.0);
             if gen_range(0.0, 1.0) < POWERUP_CHANCE {
-                let kind = match gen_range(0, 3) {
-                    0 => PowerKind::Rapid,
-                    1 => PowerKind::Spread,
-                    _ => PowerKind::Shield,
+                // Extra lives are the rare prize (~10% of drops); the rest are
+                // evenly split between the three combat power-ups.
+                let kind = match gen_range(0, 10) {
+                    0..=2 => PowerKind::Rapid,
+                    3..=5 => PowerKind::Spread,
+                    6..=8 => PowerKind::Shield,
+                    _ => PowerKind::ExtraLife,
                 };
                 self.powerups.push(PowerUp {
                     pos,
@@ -1007,14 +1029,19 @@ impl Game {
             let c = p.kind.color();
             draw_poly(p.pos.x, p.pos.y, 6, 12.0, p.spin.to_degrees(), c);
             draw_poly_lines(p.pos.x, p.pos.y, 6, 12.0, p.spin.to_degrees(), 2.0, WHITE);
-            let dim = measure_text(p.kind.glyph(), None, 20, 1.0);
-            draw_text(
-                p.kind.glyph(),
-                p.pos.x - dim.width * 0.5,
-                p.pos.y + dim.height * 0.5,
-                20.0,
-                BLACK,
-            );
+            if p.kind == PowerKind::ExtraLife {
+                // Draw a heart rather than a letter for the 1-up.
+                draw_heart(p.pos.x, p.pos.y - 1.0, 5.0, Color::new(0.15, 0.0, 0.05, 1.0));
+            } else {
+                let dim = measure_text(p.kind.glyph(), None, 20, 1.0);
+                draw_text(
+                    p.kind.glyph(),
+                    p.pos.x - dim.width * 0.5,
+                    p.pos.y + dim.height * 0.5,
+                    20.0,
+                    BLACK,
+                );
+            }
         }
 
         // Bullets.

@@ -96,7 +96,8 @@ python3 tools/gen_icon.py   # writes assets/icon.png + assets/icon_*.rgba
 
 - **Escalating waves** — more bugs, faster, with armored variants from wave 3.
 - **Carrier mechanic** — shoot a bug mid-heist and the drum drops back down.
-- **Power-ups** dropped by killed bugs: Rapid fire (R), Spread shot (S), Shield (+).
+- **Power-ups** dropped by killed bugs: Rapid fire (R), Spread shot (S), Shield
+  (+), and a rare extra-life heart (caps at 5 lives).
 - **Player lives + shield**, particle explosions, starfield, and a session high score.
 
 ## Ideas for later
