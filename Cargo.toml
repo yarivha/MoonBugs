@@ -1,6 +1,6 @@
 [package]
 name = "moonbugs"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Moon Bugs — Lunar Defense: a modern macroquad homage to Windmill Software's 1983 arcade game"
 
