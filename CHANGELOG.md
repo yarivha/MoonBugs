@@ -26,6 +26,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 - Split the single mute control into independent music and SFX mutes.
 - Moved the lives hearts below the new audio buttons so they don't overlap.
+- Eased the difficulty: gentler per-wave speed scaling (with a cap), slower
+  dives/carries, fewer bugs per wave, slightly longer spawn spacing, and a
+  higher power-up drop rate (16% → 20%).
 
 ### Fixed
 - Windows `.exe` icon now displays in Explorer and the taskbar: the `.ico`

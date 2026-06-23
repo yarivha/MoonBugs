@@ -72,7 +72,7 @@ const START_LIVES: i32 = 3;
 const MAX_LIVES: i32 = 5; // extra-life power-ups cap here so hearts fit the HUD
 const DRUM_W: f32 = 24.0;
 const DRUM_H: f32 = 28.0;
-const POWERUP_CHANCE: f32 = 0.16; // chance a killed bug drops a power-up
+const POWERUP_CHANCE: f32 = 0.20; // chance a killed bug drops a power-up
 const POWERUP_DURATION: f32 = 8.0;
 const SHIELD_DURATION: f32 = 6.0;
 
@@ -427,7 +427,7 @@ impl Game {
 
     fn next_wave(&mut self) {
         self.wave += 1;
-        self.spawn_interval = (1.2 - self.wave as f32 * 0.06).max(0.35);
+        self.spawn_interval = (1.35 - self.wave as f32 * 0.05).max(0.45);
         self.spawn_timer = 0.6;
         if self.wave % 10 == 0 {
             // Boss wave: spawn the boss now plus a small escort. The wave can't
@@ -437,7 +437,7 @@ impl Game {
             self.banner_text = format!("BOSS  —  WAVE {}", self.wave);
             self.banner_timer = 2.4;
         } else {
-            self.bugs_to_spawn = 4 + self.wave * 2;
+            self.bugs_to_spawn = 3 + self.wave * 3 / 2;
             self.banner_text = format!("WAVE {}", self.wave);
             self.banner_timer = 1.8;
         }
@@ -463,14 +463,14 @@ impl Game {
             let g = gen_range(0.55, 0.95);
             Color::new(0.45, g, 0.55, 1.0)
         };
-        let speed_boost = self.wave as f32 * 7.0;
+        let speed_boost = (self.wave as f32 * 4.0).min(70.0);
         self.bugs.push(Bug {
             pos: vec2(base_x, -20.0),
             base_x,
             amp: gen_range(28.0, 78.0),
             freq: gen_range(1.4, 2.8),
             phase: gen_range(0.0, 6.28),
-            fall_speed: gen_range(55.0, 80.0) + speed_boost,
+            fall_speed: gen_range(48.0, 70.0) + speed_boost,
             dive_y: gen_range(120.0, ground_y() * 0.55),
             wobble: 0.0,
             state: BugState::Descend,
@@ -737,7 +737,7 @@ impl Game {
                         let target = self.drums[idx].center();
                         let to = target - bug.pos;
                         let dist = to.length();
-                        let dive_speed = 210.0 + self.wave as f32 * 9.0;
+                        let dive_speed = 180.0 + self.wave as f32 * 6.0;
                         if dist < 18.0 {
                             self.drums[idx].carried = true;
                             self.drums[idx].falling = false;
@@ -748,7 +748,7 @@ impl Game {
                     }
                 }
                 BugState::Carry(idx) => {
-                    let carry_speed = 130.0 + self.wave as f32 * 6.0;
+                    let carry_speed = 115.0 + self.wave as f32 * 5.0;
                     bug.pos.y -= carry_speed * dt;
                     // Drift back toward spawn column while climbing.
                     bug.pos.x += (bug.base_x - bug.pos.x) * 0.6 * dt;
