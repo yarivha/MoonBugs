@@ -127,7 +127,7 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           awk -v ver="$VERSION" '
             $0 ~ "^## \\[" ver "\\]" {flag=1; next}
-            flag && /^## \[/ {exit}
+            flag && (/^## \[/ || /^\[.+\]:/) {exit}
             flag {print}
           ' CHANGELOG.md > release_notes.md
           # Fall back to a stub if the section is missing or empty.
