@@ -38,6 +38,7 @@ The first build pulls in macroquad and takes a minute; after that it's instant.
 | ------ | ------------------- |
 | Move   | `←` / `→` or `A`/`D` |
 | Fire   | `Space` or `↑`      |
+| Bomb (clear screen) | `B`    |
 | Pause  | `P`                 |
 | Mute SFX | `M` (or the speaker button, top-right) |
 | Mute music | `N` (or the note button, top-right) |
@@ -107,7 +108,9 @@ python3 tools/gen_icon.py   # writes assets/icon.png + assets/icon_*.rgba
   clear the wave.
 - **Carrier mechanic** — shoot a bug mid-heist and the drum drops back down.
 - **Power-ups** dropped by killed bugs: Rapid fire (R), Spread shot (S), Shield
-  (+), and a rare extra-life heart (caps at 5 lives).
+  (+), a bomb, and a rare extra-life heart (caps at 5 lives).
+- **Bombs** — you start with 3. Press `B` to detonate one and clear the screen
+  of bugs (it heavily damages a boss). Earn more from bomb power-ups (max 5).
 - **Player lives + shield**, particle explosions, starfield, and a session high score.
 
 ## Ideas for later

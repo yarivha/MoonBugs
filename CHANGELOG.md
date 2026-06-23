@@ -7,6 +7,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [0.2.0] - 2026-06-23
 
 ### Added
+- **Bombs** — start with 3; press `B` to detonate one and clear the screen of
+  bugs (carried drums drop safely; a boss takes heavy damage but isn't
+  one-shot). Earn more from a new bomb power-up, capped at 5. HUD shows the
+  count and a bright detonation flash plays.
 - **Background music** — a procedurally generated, looping chiptune track
   (`tools/gen_music.py`), embedded in the binary.
 - **Boss bug every 10th wave** — a large, horned, high-HP boss (`hp = 20 + wave`)

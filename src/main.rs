@@ -70,6 +70,8 @@ const GRAVITY: f32 = 540.0;
 const NUM_DRUMS: usize = 5;
 const START_LIVES: i32 = 3;
 const MAX_LIVES: i32 = 5; // extra-life power-ups cap here so hearts fit the HUD
+const START_BOMBS: i32 = 3;
+const MAX_BOMBS: i32 = 5;
 const DRUM_W: f32 = 24.0;
 const DRUM_H: f32 = 28.0;
 const POWERUP_CHANCE: f32 = 0.20; // chance a killed bug drops a power-up
@@ -128,6 +130,7 @@ enum PowerKind {
     Spread,
     Shield,
     ExtraLife,
+    Bomb,
 }
 
 impl PowerKind {
@@ -137,6 +140,7 @@ impl PowerKind {
             PowerKind::Spread => Color::new(0.3, 0.9, 1.0, 1.0),
             PowerKind::Shield => Color::new(0.6, 1.0, 0.5, 1.0),
             PowerKind::ExtraLife => Color::new(1.0, 0.4, 0.45, 1.0),
+            PowerKind::Bomb => Color::new(0.95, 0.6, 0.3, 1.0),
         }
     }
     fn glyph(self) -> &'static str {
@@ -145,6 +149,7 @@ impl PowerKind {
             PowerKind::Spread => "S",
             PowerKind::Shield => "+",
             PowerKind::ExtraLife => "", // drawn as a heart instead of text
+            PowerKind::Bomb => "",      // drawn as a bomb instead of text
         }
     }
 }
@@ -241,6 +246,8 @@ struct Game {
     shield_timer: f32,
     cooldown: f32,
     lives: i32,
+    bombs: i32,
+    bomb_flash: f32,
     score: i32,
     high_score: i32,
     wave: i32,
@@ -281,6 +288,8 @@ impl Game {
             shield_timer: 0.0,
             cooldown: 0.0,
             lives: START_LIVES,
+            bombs: START_BOMBS,
+            bomb_flash: 0.0,
             score: 0,
             high_score: 0,
             wave: 0,
@@ -390,6 +399,8 @@ impl Game {
         self.shield_timer = 0.0;
         self.cooldown = 0.0;
         self.lives = START_LIVES;
+        self.bombs = START_BOMBS;
+        self.bomb_flash = 0.0;
         self.score = 0;
         self.wave = 0;
         self.bullets.clear();
@@ -559,7 +570,51 @@ impl Game {
             PowerKind::ExtraLife => {
                 self.lives = (self.lives + 1).min(MAX_LIVES);
             }
+            PowerKind::Bomb => {
+                self.bombs = (self.bombs + 1).min(MAX_BOMBS);
+            }
         }
+    }
+
+    // Detonate a bomb: wipe the screen of normal bugs (their carried drums drop
+    // safely) and deal heavy damage to a boss without one-shotting it.
+    fn use_bomb(&mut self) {
+        if self.bombs <= 0 || self.phase != Phase::Playing {
+            return;
+        }
+        self.bombs -= 1;
+        self.bomb_flash = 0.45;
+        self.sfx(|a| &a.explosion);
+
+        let mut bugs = std::mem::take(&mut self.bugs);
+        for bug in &mut bugs {
+            if bug.boss {
+                bug.hp -= 8 + self.wave; // a big dent, not an instant kill
+                self.burst(bug.pos, bug.color, 26, 170.0);
+                if bug.hp <= 0 {
+                    self.score += 500 + self.wave * 40;
+                    self.burst(bug.pos, Color::new(1.0, 0.9, 0.5, 1.0), 40, 220.0);
+                    self.powerups.push(PowerUp {
+                        pos: bug.pos,
+                        vel_y: 50.0,
+                        kind: PowerKind::ExtraLife,
+                        spin: 0.0,
+                    });
+                }
+            } else {
+                if let BugState::Carry(idx) = bug.state {
+                    self.drums[idx].carried = false;
+                    self.drums[idx].falling = true;
+                    self.drums[idx].vel_y = 0.0;
+                    self.drums[idx].bonked = false;
+                }
+                self.score += 30;
+                self.burst(bug.pos, bug.color, 14, 130.0);
+                bug.hp = 0;
+            }
+        }
+        bugs.retain(|b| b.hp > 0);
+        self.bugs = bugs;
     }
 
     fn burst(&mut self, pos: Vec2, color: Color, count: usize, power: f32) {
@@ -605,6 +660,9 @@ impl Game {
         }
         if self.flash_timer > 0.0 {
             self.flash_timer -= dt;
+        }
+        if self.bomb_flash > 0.0 {
+            self.bomb_flash -= dt;
         }
 
         // --- Input: movement ---
@@ -844,12 +902,13 @@ impl Game {
         for (pos, color) in kills {
             self.burst(pos, color, 16, 130.0);
             if gen_range(0.0, 1.0) < POWERUP_CHANCE {
-                // Extra lives are the rare prize (~10% of drops); the rest are
-                // evenly split between the three combat power-ups.
-                let kind = match gen_range(0, 10) {
+                // Combat power-ups are common; bombs are uncommon and an extra
+                // life is the rare prize.
+                let kind = match gen_range(0, 12) {
                     0..=2 => PowerKind::Rapid,
                     3..=5 => PowerKind::Spread,
                     6..=8 => PowerKind::Shield,
+                    9..=10 => PowerKind::Bomb,
                     _ => PowerKind::ExtraLife,
                 };
                 self.powerups.push(PowerUp {
@@ -990,6 +1049,18 @@ impl Game {
                 screen_width(),
                 screen_height(),
                 Color::new(1.0, 0.1, 0.1, a),
+            );
+        }
+
+        // Bomb detonation flash (bright cyan-white).
+        if self.bomb_flash > 0.0 {
+            let a = (self.bomb_flash / 0.45) * 0.7;
+            draw_rectangle(
+                0.0,
+                0.0,
+                screen_width(),
+                screen_height(),
+                Color::new(0.8, 0.95, 1.0, a),
             );
         }
 
@@ -1148,6 +1219,11 @@ impl Game {
             if p.kind == PowerKind::ExtraLife {
                 // Draw a heart rather than a letter for the 1-up.
                 draw_heart(p.pos.x, p.pos.y - 1.0, 5.0, Color::new(0.15, 0.0, 0.05, 1.0));
+            } else if p.kind == PowerKind::Bomb {
+                // Draw a little bomb with a lit fuse.
+                draw_circle(p.pos.x, p.pos.y + 1.5, 6.0, Color::new(0.12, 0.12, 0.16, 1.0));
+                draw_line(p.pos.x + 3.0, p.pos.y - 4.0, p.pos.x + 6.5, p.pos.y - 8.0, 1.8, Color::new(0.4, 0.3, 0.15, 1.0));
+                draw_circle(p.pos.x + 6.5, p.pos.y - 8.0, 2.0, Color::new(1.0, 0.9, 0.3, 1.0));
             } else {
                 let dim = measure_text(p.kind.glyph(), None, 20, 1.0);
                 draw_text(
@@ -1321,6 +1397,15 @@ impl Game {
             Color::new(0.85, 0.6, 0.2, 1.0),
         );
 
+        // Bombs in reserve (press B to detonate).
+        draw_text(
+            &format!("BOMBS  {}", self.bombs),
+            16.0,
+            106.0,
+            22.0,
+            Color::new(0.95, 0.6, 0.3, 1.0),
+        );
+
         // Active weapon / shield indicators.
         if self.weapon != Weapon::Normal {
             let t = format!("{}  {:.0}s", self.weapon.label(), self.weapon_timer.max(0.0));
@@ -1364,7 +1449,7 @@ impl Game {
             screen_height() * 0.5,
         );
         self.draw_center_text_y(
-            "MOVE  </>/A/D    FIRE  Space    PAUSE  P    MUTE  M sfx / N music",
+            "MOVE </>/A/D   FIRE Space   BOMB B   PAUSE P   MUTE M/N",
             22.0,
             Color::new(0.7, 0.7, 0.8, 1.0),
             screen_height() * 0.5 + 34.0,
@@ -1494,6 +1579,9 @@ async fn main() {
             Phase::Playing => {
                 if is_key_pressed(KeyCode::P) {
                     game.phase = Phase::Paused;
+                }
+                if is_key_pressed(KeyCode::B) {
+                    game.use_bomb();
                 }
                 game.update(dt);
             }
