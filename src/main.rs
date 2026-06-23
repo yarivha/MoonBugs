@@ -16,7 +16,9 @@
 //    Esc ................. quit
 // ============================================================================
 
-use macroquad::audio::{load_sound_from_bytes, play_sound_once, Sound};
+use macroquad::audio::{
+    load_sound_from_bytes, play_sound, play_sound_once, set_sound_volume, PlaySoundParams, Sound,
+};
 use macroquad::prelude::*;
 use macroquad::rand::{gen_range, srand};
 
@@ -34,6 +36,7 @@ struct Audio {
     wave: Sound,
     gameover: Sound,
     hurt: Sound,
+    music: Sound,
 }
 
 impl Audio {
@@ -47,9 +50,12 @@ impl Audio {
             wave: load_sound_from_bytes(include_bytes!("../assets/wave.wav")).await.ok()?,
             gameover: load_sound_from_bytes(include_bytes!("../assets/gameover.wav")).await.ok()?,
             hurt: load_sound_from_bytes(include_bytes!("../assets/hurt.wav")).await.ok()?,
+            music: load_sound_from_bytes(include_bytes!("../assets/music.wav")).await.ok()?,
         })
     }
 }
+
+const MUSIC_VOL: f32 = 0.35;
 
 // ---- Tunable constants -----------------------------------------------------
 const GROUND_H: f32 = 72.0; // height of the lunar surface strip
@@ -229,7 +235,8 @@ struct Game {
     flash_timer: f32,
     time: f32,
     audio: Option<Audio>,
-    muted: bool,
+    mute_sfx: bool,
+    mute_music: bool,
 }
 
 impl Game {
@@ -267,17 +274,62 @@ impl Game {
             flash_timer: 0.0,
             time: 0.0,
             audio: None,
-            muted: false,
+            mute_sfx: false,
+            mute_music: false,
         }
     }
 
-    // Play a one-shot effect, unless muted or audio failed to load.
+    // Play a one-shot effect, unless SFX are muted or audio failed to load.
     fn sfx(&self, pick: impl Fn(&Audio) -> &Sound) {
-        if self.muted {
+        if self.mute_sfx {
             return;
         }
         if let Some(a) = &self.audio {
             play_sound_once(pick(a));
+        }
+    }
+
+    // Begin the looping background track at the current music volume.
+    fn start_music(&self) {
+        if let Some(a) = &self.audio {
+            play_sound(
+                &a.music,
+                PlaySoundParams {
+                    looped: true,
+                    volume: if self.mute_music { 0.0 } else { MUSIC_VOL },
+                },
+            );
+        }
+    }
+
+    // Flip the music mute and apply it without restarting the loop.
+    fn toggle_music(&mut self) {
+        self.mute_music = !self.mute_music;
+        if let Some(a) = &self.audio {
+            set_sound_volume(&a.music, if self.mute_music { 0.0 } else { MUSIC_VOL });
+        }
+    }
+
+    // The two clickable top-right toggle buttons: (sfx, music).
+    fn ui_buttons() -> (Rect, Rect) {
+        let (w, h, pad, gap, y) = (36.0, 28.0, 10.0, 8.0, 8.0);
+        let music = Rect::new(screen_width() - w - pad, y, w, h);
+        let sfx = Rect::new(music.x - w - gap, y, w, h);
+        (sfx, music)
+    }
+
+    // Handle clicks on the audio toggle buttons (works in every phase).
+    fn handle_ui_click(&mut self) {
+        if !is_mouse_button_pressed(MouseButton::Left) {
+            return;
+        }
+        let (mx, my) = mouse_position();
+        let p = vec2(mx, my);
+        let (sfx_r, music_r) = Self::ui_buttons();
+        if sfx_r.contains(p) {
+            self.mute_sfx = !self.mute_sfx;
+        } else if music_r.contains(p) {
+            self.toggle_music();
         }
     }
 
@@ -759,6 +811,87 @@ impl Game {
                 Color::new(1.0, 0.1, 0.1, a),
             );
         }
+
+        // Audio toggle buttons sit on top in every phase.
+        self.draw_ui_buttons();
+    }
+
+    // --- Audio toggle buttons ----------------------------------------------
+    fn draw_ui_buttons(&self) {
+        let (sfx_r, music_r) = Self::ui_buttons();
+        let m = vec2(mouse_position().0, mouse_position().1);
+        self.draw_button_bg(sfx_r, sfx_r.contains(m));
+        self.draw_speaker_icon(sfx_r, self.mute_sfx);
+        self.draw_button_bg(music_r, music_r.contains(m));
+        self.draw_note_icon(music_r, self.mute_music);
+    }
+
+    fn draw_button_bg(&self, r: Rect, hovered: bool) {
+        let bg = if hovered {
+            Color::new(0.26, 0.26, 0.36, 0.95)
+        } else {
+            Color::new(0.14, 0.14, 0.21, 0.85)
+        };
+        draw_rectangle(r.x, r.y, r.w, r.h, bg);
+        draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, Color::new(0.5, 0.5, 0.62, 0.9));
+    }
+
+    fn icon_color(muted: bool) -> Color {
+        if muted {
+            Color::new(0.55, 0.55, 0.6, 1.0)
+        } else {
+            Color::new(0.92, 0.96, 1.0, 1.0)
+        }
+    }
+
+    fn muted_slash(r: Rect) {
+        draw_line(
+            r.x + 7.0,
+            r.y + 7.0,
+            r.x + r.w - 7.0,
+            r.y + r.h - 7.0,
+            2.5,
+            Color::new(1.0, 0.35, 0.35, 1.0),
+        );
+    }
+
+    fn draw_speaker_icon(&self, r: Rect, muted: bool) {
+        let cx = r.x + r.w * 0.5;
+        let cy = r.y + r.h * 0.5;
+        let col = Self::icon_color(muted);
+        // Magnet box + flaring cone.
+        draw_rectangle(cx - 9.0, cy - 3.0, 4.0, 6.0, col);
+        draw_triangle(
+            vec2(cx - 5.0, cy),
+            vec2(cx + 3.0, cy - 8.0),
+            vec2(cx + 3.0, cy + 8.0),
+            col,
+        );
+        if muted {
+            Self::muted_slash(r);
+        } else {
+            // Two little sound waves.
+            draw_line(cx + 6.0, cy - 4.0, cx + 8.0, cy, 1.6, col);
+            draw_line(cx + 8.0, cy, cx + 6.0, cy + 4.0, 1.6, col);
+            draw_line(cx + 9.0, cy - 6.0, cx + 11.0, cy, 1.6, col);
+            draw_line(cx + 11.0, cy, cx + 9.0, cy + 6.0, 1.6, col);
+        }
+    }
+
+    fn draw_note_icon(&self, r: Rect, muted: bool) {
+        let cx = r.x + r.w * 0.5;
+        let cy = r.y + r.h * 0.5;
+        let col = Self::icon_color(muted);
+        let h1 = vec2(cx - 5.0, cy + 6.0);
+        let h2 = vec2(cx + 4.0, cy + 6.0);
+        draw_circle(h1.x, h1.y, 3.2, col); // note heads
+        draw_circle(h2.x, h2.y, 3.2, col);
+        draw_line(h1.x + 2.8, h1.y, h1.x + 2.8, cy - 7.0, 1.8, col); // stems
+        draw_line(h2.x + 2.8, h2.y, h2.x + 2.8, cy - 7.0, 1.8, col);
+        draw_line(h1.x + 2.8, cy - 7.0, h2.x + 2.8, cy - 7.0, 2.5, col); // beam
+        if muted {
+            Self::muted_slash(r);
+        }
     }
 
     fn draw_stars(&self) {
@@ -949,12 +1082,18 @@ impl Game {
             Color::new(0.9, 0.9, 0.5, 1.0),
         );
 
-        // Lives (top-right hearts).
+        // Lives (top-right hearts), sitting just below the audio buttons.
+        let heart_y = 56.0;
         for i in 0..self.lives.max(0) {
             let cx = screen_width() - 24.0 - i as f32 * 26.0;
-            draw_circle(cx - 4.0, 24.0, 5.0, RED);
-            draw_circle(cx + 4.0, 24.0, 5.0, RED);
-            draw_triangle(vec2(cx - 9.0, 26.0), vec2(cx + 9.0, 26.0), vec2(cx, 36.0), RED);
+            draw_circle(cx - 4.0, heart_y, 5.0, RED);
+            draw_circle(cx + 4.0, heart_y, 5.0, RED);
+            draw_triangle(
+                vec2(cx - 9.0, heart_y + 2.0),
+                vec2(cx + 9.0, heart_y + 2.0),
+                vec2(cx, heart_y + 12.0),
+                RED,
+            );
         }
 
         // Drums remaining.
@@ -965,17 +1104,6 @@ impl Game {
             22.0,
             Color::new(0.85, 0.6, 0.2, 1.0),
         );
-
-        // Muted indicator (top-right, under the lives).
-        if self.muted {
-            draw_text(
-                "MUTED",
-                screen_width() - 78.0,
-                52.0,
-                20.0,
-                Color::new(0.7, 0.7, 0.8, 1.0),
-            );
-        }
 
         // Active weapon / shield indicators.
         if self.weapon != Weapon::Normal {
@@ -1020,7 +1148,7 @@ impl Game {
             screen_height() * 0.5,
         );
         self.draw_center_text_y(
-            "MOVE  </> or A/D    FIRE  Space/Up    PAUSE  P    MUTE  M",
+            "MOVE  </>/A/D    FIRE  Space    PAUSE  P    MUTE  M sfx / N music",
             22.0,
             Color::new(0.7, 0.7, 0.8, 1.0),
             screen_height() * 0.5 + 34.0,
@@ -1124,6 +1252,7 @@ async fn main() {
     srand(macroquad::miniquad::date::now() as u64);
     let mut game = Game::new();
     game.audio = Audio::load().await; // None (silent) if assets are missing
+    game.start_music(); // looping background track, runs across all phases
 
     loop {
         let dt = get_frame_time().min(1.0 / 30.0); // clamp to avoid huge steps
@@ -1132,8 +1261,12 @@ async fn main() {
         if is_key_pressed(KeyCode::Escape) {
             break;
         }
+        game.handle_ui_click(); // audio toggle buttons (any phase)
         if is_key_pressed(KeyCode::M) {
-            game.muted = !game.muted;
+            game.mute_sfx = !game.mute_sfx; // keyboard shortcut for the SFX button
+        }
+        if is_key_pressed(KeyCode::N) {
+            game.toggle_music(); // keyboard shortcut for the music button
         }
         match game.phase {
             Phase::Menu | Phase::GameOver => {

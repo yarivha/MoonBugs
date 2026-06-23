@@ -35,26 +35,30 @@ The first build pulls in macroquad and takes a minute; after that it's instant.
 | Move   | `←` / `→` or `A`/`D` |
 | Fire   | `Space` or `↑`      |
 | Pause  | `P`                 |
-| Mute   | `M`                 |
+| Mute SFX | `M` (or the speaker button, top-right) |
+| Mute music | `N` (or the note button, top-right) |
 | Start / restart | `Enter`    |
 | Quit   | `Esc`               |
 
 ## Sound
 
-All SFX (laser, explosions, power-up jingle, wave fanfare, game-over dirge, etc.)
-are **procedurally generated chiptune** — no binary assets checked in by hand.
-The WAVs in `assets/` are **embedded into the binary at compile time** (via
-`include_bytes!`), so the built executable is fully self-contained and needs no
-asset folder at runtime.
+Both the SFX (laser, explosions, power-up jingle, wave fanfare, game-over dirge)
+and a looping **background music** track are **procedurally generated chiptune**
+— no binary assets checked in by hand. The WAVs in `assets/` are **embedded into
+the binary at compile time** (via `include_bytes!`), so the built executable is
+fully self-contained and needs no asset folder at runtime.
 
-Regenerate the sounds any time with:
+Regenerate the audio any time with:
 
 ```sh
-python3 tools/gen_sounds.py   # writes assets/*.wav, pure stdlib, no deps
+python3 tools/gen_sounds.py   # SFX  → assets/*.wav
+python3 tools/gen_music.py    # music → assets/music.wav (8s seamless loop)
 ```
 
-The `assets/*.wav` files must exist at **build** time (they get baked in); they
-are *not* needed alongside the shipped binary. Toggle audio in-game with `M`.
+Music and sound effects mute **independently** — click the two buttons in the
+top-right corner (speaker = SFX, note = music), or press `M` / `N`. The
+`assets/*.wav` files must exist at **build** time (they get baked in); they are
+*not* needed alongside the shipped binary.
 
 ## Icon
 
