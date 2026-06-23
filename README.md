@@ -95,6 +95,9 @@ python3 tools/gen_icon.py   # writes assets/icon.png + assets/icon_*.rgba
 ## Modern twists over the 1983 original
 
 - **Escalating waves** — more bugs, faster, with armored variants from wave 3.
+- **Boss every 10th wave** — a big, horned, high-HP bug with a health bar that
+  bumps the buggy for damage; destroy it (it drops a guaranteed extra life) to
+  clear the wave.
 - **Carrier mechanic** — shoot a bug mid-heist and the drum drops back down.
 - **Power-ups** dropped by killed bugs: Rapid fire (R), Spread shot (S), Shield
   (+), and a rare extra-life heart (caps at 5 lives).
@@ -104,6 +107,6 @@ python3 tools/gen_icon.py   # writes assets/icon.png + assets/icon_*.rgba
 
 - Background music loop (the `audio` module supports looped playback).
 - Persistent high score to disk.
-- Boss bug every N waves; bombs/smart-bomb power-up.
+- Bombs / smart-bomb power-up; boss projectile attacks.
 - Gamepad support.
 - WebAssembly build (`cargo build --target wasm32-unknown-unknown`) to play in a browser.

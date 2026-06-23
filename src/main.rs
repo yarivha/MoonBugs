@@ -197,9 +197,12 @@ struct Bug {
     wobble: f32,
     state: BugState,
     hp: i32,
+    max_hp: i32, // for the boss health bar
     radius: f32,
     color: Color,
     flap: f32,
+    boss: bool,
+    hit_cd: f32, // boss: cooldown between contact hits on the player
 }
 
 struct Particle {
@@ -396,11 +399,20 @@ impl Game {
 
     fn next_wave(&mut self) {
         self.wave += 1;
-        self.bugs_to_spawn = 4 + self.wave * 2;
         self.spawn_interval = (1.2 - self.wave as f32 * 0.06).max(0.35);
         self.spawn_timer = 0.6;
-        self.banner_text = format!("WAVE {}", self.wave);
-        self.banner_timer = 1.8;
+        if self.wave % 10 == 0 {
+            // Boss wave: spawn the boss now plus a small escort. The wave can't
+            // clear until the boss is destroyed (it's in self.bugs).
+            self.spawn_boss();
+            self.bugs_to_spawn = 6;
+            self.banner_text = format!("BOSS  —  WAVE {}", self.wave);
+            self.banner_timer = 2.4;
+        } else {
+            self.bugs_to_spawn = 4 + self.wave * 2;
+            self.banner_text = format!("WAVE {}", self.wave);
+            self.banner_timer = 1.8;
+        }
         self.sfx(|a| &a.wave);
     }
 
@@ -433,9 +445,36 @@ impl Game {
             wobble: 0.0,
             state: BugState::Descend,
             hp,
+            max_hp: hp,
             radius: if armored { 16.0 } else { 13.0 },
             color,
             flap: gen_range(0.0, 6.28),
+            boss: false,
+            hit_cd: 0.0,
+        });
+    }
+
+    // -- Spawn the big, high-HP boss (every 10th wave) ----------------------
+    fn spawn_boss(&mut self) {
+        let w = screen_width();
+        let hp = 20 + self.wave; // wave 10 -> 30, wave 20 -> 40, ...
+        self.bugs.push(Bug {
+            pos: vec2(w * 0.5, -50.0),
+            base_x: w * 0.5,
+            amp: w * 0.30,
+            freq: 0.6,
+            phase: 0.0,
+            fall_speed: 14.0, // creeps down slowly so the fight has room to play out
+            dive_y: 0.0,
+            wobble: 0.0,
+            state: BugState::Descend,
+            hp,
+            max_hp: hp,
+            radius: 38.0,
+            color: Color::new(0.92, 0.2, 0.32, 1.0),
+            flap: 0.0,
+            boss: true,
+            hit_cd: 0.0,
         });
     }
 
@@ -616,6 +655,34 @@ impl Game {
         // Move + state machine.
         for bug in &mut bugs {
             bug.flap += dt * 14.0;
+
+            // The boss has its own behaviour: weave across the top, creep down
+            // slowly, and bump the buggy for damage (on a cooldown) rather than
+            // diving for drums. It only dies to sustained gunfire.
+            if bug.boss {
+                bug.wobble += dt;
+                bug.pos.x = (bug.base_x + (bug.wobble * bug.freq).sin() * bug.amp)
+                    .clamp(bug.radius, screen_width() - bug.radius);
+                bug.pos.y += bug.fall_speed * dt;
+                if bug.hit_cd > 0.0 {
+                    bug.hit_cd -= dt;
+                }
+                if bug.pos.y + bug.radius >= py
+                    && (bug.pos.x - self.player_x).abs() < PLAYER_W * 0.5 + bug.radius
+                {
+                    if bug.hit_cd <= 0.0 {
+                        bug.hit_cd = 1.0;
+                        if self.shield_timer > 0.0 {
+                            self.burst(bug.pos, bug.color, 18, 150.0);
+                        } else {
+                            life_hits.push(vec2(self.player_x, py));
+                        }
+                    }
+                    bug.pos.y = py - bug.radius - 30.0; // bounce up, don't sit on the player
+                }
+                continue;
+            }
+
             match bug.state {
                 BugState::Descend => {
                     bug.wobble += dt;
@@ -713,9 +780,27 @@ impl Game {
                         self.drums[idx].vel_y = 0.0;
                         self.drums[idx].bonked = false;
                     }
-                    self.score += 50;
-                    kills.push((bug.pos, bug.color));
+                    if bug.boss {
+                        // Big payoff: large score, a huge blast, and a
+                        // guaranteed extra-life drop.
+                        self.score += 500 + self.wave * 40;
+                        self.burst(bug.pos, bug.color, 60, 240.0);
+                        self.burst(bug.pos, Color::new(1.0, 0.9, 0.5, 1.0), 30, 180.0);
+                        self.powerups.push(PowerUp {
+                            pos: bug.pos,
+                            vel_y: 50.0,
+                            kind: PowerKind::ExtraLife,
+                            spin: 0.0,
+                        });
+                        self.flash_timer = 0.25;
+                    } else {
+                        self.score += 50;
+                        kills.push((bug.pos, bug.color));
+                    }
                     self.sfx(|a| &a.explosion);
+                } else if bug.boss {
+                    // Chip damage on the boss — score only, no sound spam.
+                    self.score += 5;
                 } else {
                     // Glancing hit on an armored bug — small spark.
                     self.score += 10;
@@ -1058,6 +1143,9 @@ impl Game {
         // Bugs.
         for bug in &self.bugs {
             self.draw_bug(bug);
+            if bug.boss {
+                self.draw_boss_health(bug);
+            }
         }
 
         // Particles.
@@ -1094,11 +1182,38 @@ impl Game {
         // Body.
         draw_circle(x, y, r, bug.color);
         draw_circle_lines(x, y, r, 2.0, Color::new(0.0, 0.0, 0.0, 0.5));
+        // Menacing horns for the boss.
+        if bug.boss {
+            draw_triangle(
+                vec2(x - r * 0.7, y - r * 0.8),
+                vec2(x - r * 0.3, y - r * 0.9),
+                vec2(x - r * 0.5, y - r * 1.4),
+                bug.color,
+            );
+            draw_triangle(
+                vec2(x + r * 0.7, y - r * 0.8),
+                vec2(x + r * 0.3, y - r * 0.9),
+                vec2(x + r * 0.5, y - r * 1.4),
+                bug.color,
+            );
+        }
         // Eyes.
         draw_circle(x - r * 0.35, y - r * 0.1, r * 0.22, WHITE);
         draw_circle(x + r * 0.35, y - r * 0.1, r * 0.22, WHITE);
         draw_circle(x - r * 0.35, y - r * 0.1, r * 0.1, BLACK);
         draw_circle(x + r * 0.35, y - r * 0.1, r * 0.1, BLACK);
+    }
+
+    // A health bar floating above the boss.
+    fn draw_boss_health(&self, bug: &Bug) {
+        let w = bug.radius * 2.4;
+        let h = 7.0;
+        let x = bug.pos.x - w * 0.5;
+        let y = bug.pos.y - bug.radius - 18.0;
+        let frac = (bug.hp as f32 / bug.max_hp.max(1) as f32).clamp(0.0, 1.0);
+        draw_rectangle(x, y, w, h, Color::new(0.1, 0.1, 0.12, 0.85));
+        draw_rectangle(x, y, w * frac, h, Color::new(1.0, 0.3, 0.35, 1.0));
+        draw_rectangle_lines(x, y, w, h, 1.5, Color::new(0.9, 0.9, 0.95, 0.9));
     }
 
     fn draw_player(&self) {
