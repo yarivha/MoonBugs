@@ -54,8 +54,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleName</key>            <string>${NAME}</string>
   <key>CFBundleDisplayName</key>     <string>Moon Bugs</string>
   <key>CFBundleIdentifier</key>      <string>com.yariv.moonbugs</string>
-  <key>CFBundleVersion</key>         <string>0.2.0</string>
-  <key>CFBundleShortVersionString</key><string>0.2.0</string>
+  <key>CFBundleVersion</key>         <string>0.3.0</string>
+  <key>CFBundleShortVersionString</key><string>0.3.0</string>
   <key>CFBundlePackageType</key>     <string>APPL</string>
   <key>CFBundleExecutable</key>      <string>${NAME}</string>
   <key>CFBundleIconFile</key>        <string>AppIcon</string>
