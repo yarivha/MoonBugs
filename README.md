@@ -52,8 +52,11 @@ Regenerate the audio any time with:
 
 ```sh
 python3 tools/gen_sounds.py   # SFX  → assets/*.wav
-python3 tools/gen_music.py    # music → assets/music.wav (8s seamless loop)
+python3 tools/gen_music.py    # music → assets/music.wav + music_boss.wav
 ```
+
+There are two looping tracks: a calm overworld theme, and a darker, faster boss
+theme that takes over when a boss appears (and switches back when the wave ends).
 
 Music and sound effects mute **independently** — click the two buttons in the
 top-right corner (speaker = SFX, note = music), or press `M` / `N`. The

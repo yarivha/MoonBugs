@@ -17,7 +17,8 @@
 // ============================================================================
 
 use macroquad::audio::{
-    load_sound_from_bytes, play_sound, play_sound_once, set_sound_volume, PlaySoundParams, Sound,
+    load_sound_from_bytes, play_sound, play_sound_once, set_sound_volume, stop_sound,
+    PlaySoundParams, Sound,
 };
 use macroquad::prelude::*;
 use macroquad::rand::{gen_range, srand};
@@ -37,6 +38,7 @@ struct Audio {
     gameover: Sound,
     hurt: Sound,
     music: Sound,
+    music_boss: Sound,
 }
 
 impl Audio {
@@ -51,6 +53,7 @@ impl Audio {
             gameover: load_sound_from_bytes(include_bytes!("../assets/gameover.wav")).await.ok()?,
             hurt: load_sound_from_bytes(include_bytes!("../assets/hurt.wav")).await.ok()?,
             music: load_sound_from_bytes(include_bytes!("../assets/music.wav")).await.ok()?,
+            music_boss: load_sound_from_bytes(include_bytes!("../assets/music_boss.wav")).await.ok()?,
         })
     }
 }
@@ -257,6 +260,7 @@ struct Game {
     audio: Option<Audio>,
     mute_sfx: bool,
     mute_music: bool,
+    boss_music: bool, // which track is currently looping
 }
 
 impl Game {
@@ -296,6 +300,7 @@ impl Game {
             audio: None,
             mute_sfx: false,
             mute_music: false,
+            boss_music: false,
         }
     }
 
@@ -309,24 +314,47 @@ impl Game {
         }
     }
 
-    // Begin the looping background track at the current music volume.
+    fn music_volume(&self) -> f32 {
+        if self.mute_music {
+            0.0
+        } else {
+            MUSIC_VOL
+        }
+    }
+
+    // Start the looping track that matches the current boss_music state.
     fn start_music(&self) {
         if let Some(a) = &self.audio {
+            let track = if self.boss_music { &a.music_boss } else { &a.music };
             play_sound(
-                &a.music,
+                track,
                 PlaySoundParams {
                     looped: true,
-                    volume: if self.mute_music { 0.0 } else { MUSIC_VOL },
+                    volume: self.music_volume(),
                 },
             );
         }
     }
 
-    // Flip the music mute and apply it without restarting the loop.
+    // Cross-fade-free swap between the calm and boss themes.
+    fn switch_music(&mut self, boss: bool) {
+        if self.boss_music == boss {
+            return;
+        }
+        self.boss_music = boss;
+        if let Some(a) = &self.audio {
+            stop_sound(&a.music);
+            stop_sound(&a.music_boss);
+        }
+        self.start_music();
+    }
+
+    // Flip the music mute and apply it to the active track without restarting it.
     fn toggle_music(&mut self) {
         self.mute_music = !self.mute_music;
         if let Some(a) = &self.audio {
-            set_sound_volume(&a.music, if self.mute_music { 0.0 } else { MUSIC_VOL });
+            let track = if self.boss_music { &a.music_boss } else { &a.music };
+            set_sound_volume(track, self.music_volume());
         }
     }
 
@@ -413,6 +441,8 @@ impl Game {
             self.banner_text = format!("WAVE {}", self.wave);
             self.banner_timer = 1.8;
         }
+        // Switch to the scary boss theme on boss waves, back to calm otherwise.
+        self.switch_music(self.wave % 10 == 0);
         self.sfx(|a| &a.wave);
     }
 
@@ -563,6 +593,7 @@ impl Game {
         if self.score > self.high_score {
             self.high_score = self.score;
         }
+        self.switch_music(false); // back to the calm theme on the game-over screen
         self.sfx(|a| &a.gameover);
     }
 
