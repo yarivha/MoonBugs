@@ -1,0 +1,88 @@
+<svg width="680" viewBox="0 0 680 420" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>Moon Bugs boss wave</title>
+<desc>A large red horned boss bug with a health bar hovering over the lunar surface, flanked by small green bugs, above fuel drums and the player's buggy.</desc>
+
+<rect x="0" y="0" width="680" height="420" rx="12" fill="#0a0a14"/>
+
+<g fill="#ffffff">
+<circle cx="60" cy="50" r="1.6" opacity="0.8"/>
+<circle cx="150" cy="90" r="1.1" opacity="0.6"/>
+<circle cx="240" cy="40" r="1.4" opacity="0.7"/>
+<circle cx="430" cy="60" r="1.2" opacity="0.6"/>
+<circle cx="520" cy="100" r="1.7" opacity="0.85"/>
+<circle cx="610" cy="48" r="1.3" opacity="0.7"/>
+<circle cx="600" cy="150" r="1.1" opacity="0.6"/>
+<circle cx="90" cy="200" r="1.2" opacity="0.6"/>
+<circle cx="350" cy="36" r="1.0" opacity="0.5"/>
+<circle cx="470" cy="200" r="1.1" opacity="0.55"/>
+</g>
+
+<rect x="0" y="360" width="680" height="60" fill="#232230"/>
+<rect x="0" y="358" width="680" height="2" fill="#6f6c8c"/>
+<g fill="none" stroke="#3a3848" stroke-width="1.5">
+<circle cx="70" cy="388" r="12"/>
+<circle cx="250" cy="392" r="10"/>
+<circle cx="470" cy="386" r="14"/>
+<circle cx="610" cy="392" r="11"/>
+</g>
+
+<g>
+<rect x="124" y="334" width="22" height="26" fill="#d98c26"/>
+<rect x="124" y="345" width="22" height="5" fill="#ffd84d"/>
+<rect x="246" y="334" width="22" height="26" fill="#d98c26"/>
+<rect x="246" y="345" width="22" height="5" fill="#ffd84d"/>
+<rect x="418" y="334" width="22" height="26" fill="#d98c26"/>
+<rect x="418" y="345" width="22" height="5" fill="#ffd84d"/>
+<rect x="540" y="334" width="22" height="26" fill="#d98c26"/>
+<rect x="540" y="345" width="22" height="5" fill="#ffd84d"/>
+</g>
+
+<g>
+<polygon points="120,178 108,168 116,188" fill="#3f8f4f"/>
+<polygon points="160,178 172,168 164,188" fill="#3f8f4f"/>
+<circle cx="140" cy="178" r="16" fill="#6fd86f"/>
+<circle cx="134" cy="174" r="4.2" fill="#ffffff"/>
+<circle cx="146" cy="174" r="4.2" fill="#ffffff"/>
+<circle cx="134" cy="175" r="2" fill="#0a0a14"/>
+<circle cx="146" cy="175" r="2" fill="#0a0a14"/>
+</g>
+<g>
+<polygon points="540,150 528,140 536,160" fill="#3f8f4f"/>
+<polygon points="580,150 592,140 584,160" fill="#3f8f4f"/>
+<circle cx="560" cy="150" r="16" fill="#79de79"/>
+<circle cx="554" cy="146" r="4.2" fill="#ffffff"/>
+<circle cx="566" cy="146" r="4.2" fill="#ffffff"/>
+<circle cx="554" cy="147" r="2" fill="#0a0a14"/>
+<circle cx="566" cy="147" r="2" fill="#0a0a14"/>
+</g>
+
+<rect x="270" y="76" width="140" height="11" rx="2" fill="#1a1a22"/>
+<rect x="270" y="76" width="96" height="11" rx="2" fill="#ff4d57"/>
+<rect x="270" y="76" width="140" height="11" rx="2" fill="none" stroke="#e8e8f0" stroke-width="1.5"/>
+
+<g>
+<polygon points="340,150 262,126 300,178" fill="#9a2238"/>
+<polygon points="340,150 418,126 380,178" fill="#9a2238"/>
+<polygon points="318,108 338,104 328,78" fill="#ea3352"/>
+<polygon points="362,108 342,104 352,78" fill="#ea3352"/>
+<circle cx="340" cy="150" r="50" fill="#ea3352" stroke="#5a0e1e" stroke-width="3"/>
+<circle cx="322" cy="132" r="24" fill="#f5798c" opacity="0.45"/>
+<circle cx="322" cy="146" r="11" fill="#ffffff"/>
+<circle cx="358" cy="146" r="11" fill="#ffffff"/>
+<circle cx="325" cy="148" r="5" fill="#14060a"/>
+<circle cx="361" cy="148" r="5" fill="#14060a"/>
+</g>
+
+<g>
+<rect x="320" y="360" width="40" height="12" fill="#99d8ff"/>
+<polygon points="320,360 360,360 340,348" fill="#99d8ff"/>
+<rect x="337" y="344" width="6" height="12" fill="#cdecff"/>
+<circle cx="328" cy="374" r="5" fill="#4a4a5a"/>
+<circle cx="352" cy="374" r="5" fill="#4a4a5a"/>
+</g>
+
+<g fill="#ffe680">
+<rect x="338.5" y="320" width="3" height="10"/>
+<rect x="338.5" y="300" width="3" height="10"/>
+</g>
+</svg>

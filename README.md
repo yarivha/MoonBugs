@@ -9,6 +9,10 @@ the screen. Shoot a carrier and it **drops the drum** — which falls safely bac
 to the ground if it survives the trip. Lose all your drums (or all your lives)
 and it's game over.
 
+![Boss wave — a big horned boss bug looms over the lunar surface, flanked by escort bugs, above the fuel drums and the player's buggy](docs/boss-wave.svg)
+
+*Every 10th wave a high-HP boss appears (and the music turns ominous).*
+
 ## Download
 
 Prebuilt binaries for Linux, macOS (Intel + Apple Silicon) and Windows are
