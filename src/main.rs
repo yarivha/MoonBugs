@@ -150,6 +150,7 @@ struct Drum {
     carried: bool,
     falling: bool,
     vel_y: f32,
+    bonked: bool, // already struck the player during the current fall
 }
 
 impl Drum {
@@ -372,6 +373,7 @@ impl Game {
                 carried: false,
                 falling: false,
                 vel_y: 0.0,
+                bonked: false,
             });
         }
     }
@@ -690,6 +692,7 @@ impl Game {
                         self.drums[idx].carried = false;
                         self.drums[idx].falling = true;
                         self.drums[idx].vel_y = 0.0;
+                        self.drums[idx].bonked = false;
                     }
                     self.score += 50;
                     kills.push((bug.pos, bug.color));
@@ -728,16 +731,56 @@ impl Game {
     }
 
     fn update_drums(&mut self, dt: f32) {
+        let py = player_y();
+        let px = self.player_x;
+        let shielded = self.shield_timer > 0.0;
+        // Player's hit box (matches the buggy's hull + cannon).
+        let p_left = px - PLAYER_W * 0.5;
+        let p_right = px + PLAYER_W * 0.5;
+        let p_top = py - 8.0;
+        let p_bottom = py + PLAYER_H;
+
+        let mut life_hits: Vec<Vec2> = Vec::new();
+        let mut shield_hits: Vec<Vec2> = Vec::new();
+
         for d in &mut self.drums {
-            if d.falling {
-                d.vel_y += GRAVITY * dt;
-                d.pos.y += d.vel_y * dt;
-                if d.pos.y >= d.home_y {
-                    d.pos.y = d.home_y;
-                    d.vel_y = 0.0;
-                    d.falling = false;
+            if !d.falling {
+                continue;
+            }
+            d.vel_y += GRAVITY * dt;
+            d.pos.y += d.vel_y * dt;
+
+            // A falling barrel strikes the buggy just like a bug does.
+            if !d.bonked {
+                let overlap = d.pos.x < p_right
+                    && d.pos.x + DRUM_W > p_left
+                    && d.pos.y < p_bottom
+                    && d.pos.y + DRUM_H > p_top;
+                if overlap {
+                    d.bonked = true;
+                    if shielded {
+                        shield_hits.push(d.center());
+                    } else {
+                        life_hits.push(d.center());
+                    }
                 }
             }
+
+            if d.pos.y >= d.home_y {
+                d.pos.y = d.home_y;
+                d.vel_y = 0.0;
+                d.falling = false;
+                d.bonked = false;
+            }
+        }
+
+        // Shield bounces the barrel off harmlessly; otherwise it costs a life.
+        for at in shield_hits {
+            self.burst(at, Color::new(0.85, 0.55, 0.15, 1.0), 14, 120.0);
+            self.sfx(|a| &a.hit);
+        }
+        for at in life_hits {
+            self.lose_life(at);
         }
     }
 
