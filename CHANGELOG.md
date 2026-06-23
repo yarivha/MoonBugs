@@ -27,6 +27,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Split the single mute control into independent music and SFX mutes.
 - Moved the lives hearts below the new audio buttons so they don't overlap.
 
+### Fixed
+- Windows `.exe` icon now displays in Explorer and the taskbar: the `.ico`
+  stores small sizes (16–128px) as BMP rather than PNG, which Windows renders
+  unreliably below 256px.
+
 ## [0.1.0] - 2026-06-23
 
 ### Added

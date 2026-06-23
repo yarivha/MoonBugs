@@ -171,13 +171,43 @@ def write_png(path, size, rgba):
         f.write(png_bytes(size, rgba))
 
 
-def write_ico(path, sizes):
-    """Write a multi-resolution Windows .ico holding PNG-encoded sub-images.
+def bmp_icon_bytes(size, rgba):
+    """Encode an RGBA buffer as a 32-bit BMP/DIB icon image (for an .ico entry).
 
-    `sizes` is a list of square pixel sizes; PNG-compressed entries are valid
-    in .ico files on Windows Vista and later.
+    Windows Explorer and the taskbar reliably render the small icon sizes only
+    from BMP-format entries — PNG-in-ICO is dependable at 256px but flaky at
+    16/32/48px, where it shows a blank/generic icon. So small sizes use this.
+
+    The DIB stores a doubled height (XOR color rows + AND mask rows), bottom-up,
+    with BGRA pixels. With a 32-bit alpha channel the AND mask is all-zero.
     """
-    images = [(s, png_bytes(s, render(s))) for s in sizes]
+    # BITMAPINFOHEADER: height is doubled to cover the (empty) AND mask.
+    header = struct.pack(
+        "<IiiHHIIiiII", 40, size, size * 2, 1, 32, 0, 0, 0, 0, 0, 0
+    )
+    xor = bytearray()
+    for y in range(size - 1, -1, -1):  # bottom-up
+        row = y * size * 4
+        for x in range(size):
+            i = row + x * 4
+            r, g, b, a = rgba[i], rgba[i + 1], rgba[i + 2], rgba[i + 3]
+            xor += bytes((b, g, r, a))  # BGRA
+    and_row = ((size + 31) // 32) * 4  # 1bpp, rows padded to 32 bits
+    and_mask = bytes(and_row * size)   # all zero = fully opaque
+    return header + bytes(xor) + and_mask
+
+
+def write_ico(path, sizes):
+    """Write a multi-resolution Windows .ico.
+
+    Small sizes are stored as BMP (best Explorer/taskbar compatibility); 256px
+    is stored as PNG (compact and well supported at that size).
+    """
+    images = []
+    for s in sizes:
+        rgba = render(s)
+        data = png_bytes(s, rgba) if s >= 256 else bmp_icon_bytes(s, rgba)
+        images.append((s, data))
     count = len(images)
     header = struct.pack("<HHH", 0, 1, count)  # reserved, type=icon, count
     entries = b""
@@ -185,9 +215,7 @@ def write_ico(path, sizes):
     blob = b""
     for s, data in images:
         dim = s if s < 256 else 0  # 0 encodes 256 in the ICONDIRENTRY
-        entries += struct.pack(
-            "<BBBBHHII", dim, dim, 0, 0, 1, 32, len(data), offset
-        )
+        entries += struct.pack("<BBBBHHII", dim, dim, 0, 0, 1, 32, len(data), offset)
         offset += len(data)
         blob += data
     with open(path, "wb") as f:
