@@ -47,7 +47,8 @@ The first build pulls in macroquad and takes a minute; after that it's instant.
 
 ## Sound
 
-Both the SFX (laser, explosions, power-up jingle, wave fanfare, game-over dirge)
+Both the SFX (laser, explosions, power-up jingle, wave fanfare, boss charge-up
+and volley, game-over dirge)
 and a looping **background music** track are **procedurally generated chiptune**
 — no binary assets checked in by hand. The WAVs in `assets/` are **embedded into
 the binary at compile time** (via `include_bytes!`), so the built executable is
@@ -106,6 +107,14 @@ python3 tools/gen_icon.py   # writes assets/icon.png + assets/icon_*.rgba
 - **Boss every 10th wave** — a big, horned, high-HP bug with a health bar that
   bumps the buggy for damage; destroy it (it drops a guaranteed extra life) to
   clear the wave.
+- **Boss plasma volleys** — the boss shells the surface with three attack
+  patterns: an aimed 3-shot burst, a wide downward fan, and (from wave 20) a
+  full radial ring. Every volley is telegraphed by a charge-up — a ring
+  collapsing under the boss's belly, plus a firing line for aimed bursts — so
+  there's always a window to move. Your shield eats a bolt; a bomb sweeps them
+  all away.
+- **Mercy window** — after any hit you're briefly invulnerable (the buggy
+  flickers), so one volley costs one life rather than three.
 - **Carrier mechanic** — shoot a bug mid-heist and the drum drops back down.
 - **Power-ups** dropped by killed bugs: Rapid fire (R), Spread shot (S), Shield
   (+), a bomb, and a rare extra-life heart (caps at 5 lives).
@@ -115,8 +124,6 @@ python3 tools/gen_icon.py   # writes assets/icon.png + assets/icon_*.rgba
 
 ## Ideas for later
 
-- Background music loop (the `audio` module supports looped playback).
 - Persistent high score to disk.
-- Bombs / smart-bomb power-up; boss projectile attacks.
 - Gamepad support.
 - WebAssembly build (`cargo build --target wasm32-unknown-unknown`) to play in a browser.

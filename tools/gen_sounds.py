@@ -63,6 +63,18 @@ def arp(freqs, note_dur, vol=0.32, duty=0.5):
     return out
 
 
+def swell(freq_start, freq_end, dur, vol=0.3, duty=0.3):
+    """A pitch-swept square tone that *grows* in volume — a wind-up telegraph."""
+    n = int(SR * dur)
+    out = []
+    for i in range(n):
+        t = i / SR
+        prog = i / n
+        freq = freq_start + (freq_end - freq_start) * prog
+        out.append(square(t, freq, duty) * vol * (prog**1.5))
+    return out
+
+
 def noise_burst(dur, vol=0.4, lp=0.5):
     """White noise with a one-pole low-pass and exponential decay — explosions."""
     n = int(SR * dur)
@@ -106,6 +118,14 @@ def main():
     buzz = tone(160, 110, 0.22, vol=0.34, duty=0.5)
     noise = noise_burst(0.22, vol=0.12, lp=0.7)
     write_wav("hurt.wav", [a + b for a, b in zip(buzz, noise)])
+
+    # Boss winding up an attack — a rising whine that swells before the volley.
+    write_wav("boss_charge.wav", swell(170, 880, 0.60, vol=0.24, duty=0.28))
+
+    # Boss volley launched — a fat, dirty descending thump.
+    thump = tone(340, 120, 0.16, vol=0.34, duty=0.18)
+    grit = noise_burst(0.16, vol=0.14, lp=0.35)
+    write_wav("boss_shot.wav", [a + b for a, b in zip(thump, grit)])
 
     print("Done.")
 

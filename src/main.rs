@@ -37,6 +37,8 @@ struct Audio {
     wave: Sound,
     gameover: Sound,
     hurt: Sound,
+    boss_charge: Sound,
+    boss_shot: Sound,
     music: Sound,
     music_boss: Sound,
 }
@@ -52,6 +54,8 @@ impl Audio {
             wave: load_sound_from_bytes(include_bytes!("../assets/wave.wav")).await.ok()?,
             gameover: load_sound_from_bytes(include_bytes!("../assets/gameover.wav")).await.ok()?,
             hurt: load_sound_from_bytes(include_bytes!("../assets/hurt.wav")).await.ok()?,
+            boss_charge: load_sound_from_bytes(include_bytes!("../assets/boss_charge.wav")).await.ok()?,
+            boss_shot: load_sound_from_bytes(include_bytes!("../assets/boss_shot.wav")).await.ok()?,
             music: load_sound_from_bytes(include_bytes!("../assets/music.wav")).await.ok()?,
             music_boss: load_sound_from_bytes(include_bytes!("../assets/music_boss.wav")).await.ok()?,
         })
@@ -77,6 +81,9 @@ const DRUM_H: f32 = 28.0;
 const POWERUP_CHANCE: f32 = 0.20; // chance a killed bug drops a power-up
 const POWERUP_DURATION: f32 = 8.0;
 const SHIELD_DURATION: f32 = 6.0;
+const SHOT_R: f32 = 7.0; // radius of a boss plasma shot
+const INVULN: f32 = 1.2; // mercy window after a hit, so one volley costs one life
+const BOSS_CHARGE: f32 = 0.65; // wind-up before a volley — the player's cue to move
 
 // ---- Layout helpers --------------------------------------------------------
 fn ground_y() -> f32 {
@@ -84,6 +91,12 @@ fn ground_y() -> f32 {
 }
 fn player_y() -> f32 {
     ground_y() - PLAYER_H
+}
+
+// Rotate a vector by `a` radians (counter-clockwise in screen space).
+fn rotate(v: Vec2, a: f32) -> Vec2 {
+    let (s, c) = a.sin_cos();
+    vec2(v.x * c - v.y * s, v.x * s + v.y * c)
 }
 
 // Draw a heart centered at (cx, cy): two top lobes plus a bottom point.
@@ -210,7 +223,29 @@ struct Bug {
     color: Color,
     flap: f32,
     boss: bool,
-    hit_cd: f32, // boss: cooldown between contact hits on the player
+    hit_cd: f32,        // boss: cooldown between contact hits on the player
+    shot_cd: f32,       // boss: time until the next volley winds up
+    charge: f32,        // boss: >0 while telegraphing; fires when it hits 0
+    attack: BossAttack, // boss: the pattern currently being charged
+}
+
+// ---- Boss ranged attacks ---------------------------------------------------
+// The boss telegraphs every volley with a visible charge-up (see BOSS_CHARGE),
+// so each pattern is dodgeable if you're watching the wind-up.
+#[derive(Clone, Copy, PartialEq)]
+enum BossAttack {
+    Aimed, // tight 3-shot burst led straight at the buggy
+    Fan,   // wide downward spray that sweeps the lane
+    Ring,  // full radial burst (late waves only)
+}
+
+// A plasma bolt fired by the boss. Hurts the buggy, absorbed by the shield,
+// and fizzles out on the lunar surface.
+struct EnemyShot {
+    pos: Vec2,
+    vel: Vec2,
+    spin: f32,
+    spent: bool, // hit something this frame — cleaned up after the sweep
 }
 
 struct Particle {
@@ -244,6 +279,7 @@ struct Game {
     weapon: Weapon,
     weapon_timer: f32,
     shield_timer: f32,
+    invuln: f32,
     cooldown: f32,
     lives: i32,
     bombs: i32,
@@ -252,6 +288,7 @@ struct Game {
     high_score: i32,
     wave: i32,
     bullets: Vec<Bullet>,
+    enemy_shots: Vec<EnemyShot>,
     drums: Vec<Drum>,
     bugs: Vec<Bug>,
     particles: Vec<Particle>,
@@ -286,6 +323,7 @@ impl Game {
             weapon: Weapon::Normal,
             weapon_timer: 0.0,
             shield_timer: 0.0,
+            invuln: 0.0,
             cooldown: 0.0,
             lives: START_LIVES,
             bombs: START_BOMBS,
@@ -294,6 +332,7 @@ impl Game {
             high_score: 0,
             wave: 0,
             bullets: Vec::new(),
+            enemy_shots: Vec::new(),
             drums: Vec::new(),
             bugs: Vec::new(),
             particles: Vec::new(),
@@ -397,6 +436,7 @@ impl Game {
         self.weapon = Weapon::Normal;
         self.weapon_timer = 0.0;
         self.shield_timer = 0.0;
+        self.invuln = 0.0;
         self.cooldown = 0.0;
         self.lives = START_LIVES;
         self.bombs = START_BOMBS;
@@ -404,6 +444,7 @@ impl Game {
         self.score = 0;
         self.wave = 0;
         self.bullets.clear();
+        self.enemy_shots.clear();
         self.bugs.clear();
         self.particles.clear();
         self.powerups.clear();
@@ -492,6 +533,9 @@ impl Game {
             flap: gen_range(0.0, 6.28),
             boss: false,
             hit_cd: 0.0,
+            shot_cd: 0.0,
+            charge: 0.0,
+            attack: BossAttack::Aimed,
         });
     }
 
@@ -516,7 +560,82 @@ impl Game {
             flap: 0.0,
             boss: true,
             hit_cd: 0.0,
+            shot_cd: 1.2, // a grace beat before the first volley winds up
+            charge: 0.0,
+            attack: BossAttack::Aimed,
         });
+    }
+
+    // -- Boss gunnery --------------------------------------------------------
+    // Start-to-start spacing between volleys; tightens as the waves climb.
+    fn boss_shot_interval(&self) -> f32 {
+        (2.9 - self.wave as f32 * 0.05).max(1.3)
+    }
+
+    // Aimed bursts are the staple; fans mix things up; the radial ring only
+    // shows up once the player has seen a couple of bosses.
+    fn pick_attack(&self) -> BossAttack {
+        let roll = gen_range(0, 10);
+        if roll < 5 {
+            BossAttack::Aimed
+        } else if roll < 9 || self.wave < 20 {
+            BossAttack::Fan
+        } else {
+            BossAttack::Ring
+        }
+    }
+
+    fn push_shot(&mut self, pos: Vec2, dir: Vec2, speed: f32) {
+        self.enemy_shots.push(EnemyShot {
+            pos,
+            vel: dir * speed,
+            spin: gen_range(0.0, 6.28),
+            spent: false,
+        });
+    }
+
+    // Fire the volley that just finished charging.
+    fn fire_volley(&mut self, from: Vec2, attack: BossAttack) {
+        let speed = (155.0 + self.wave as f32 * 2.0).min(250.0);
+        let down = vec2(0.0, 1.0);
+        match attack {
+            BossAttack::Aimed => {
+                // Lead the shots at wherever the buggy is *now* — the charge-up
+                // is the window to be somewhere else.
+                let aim = (vec2(self.player_x, player_y()) - from).normalize_or_zero();
+                let aim = if aim == Vec2::ZERO { down } else { aim };
+                for &a in &[-0.13, 0.0, 0.13] {
+                    self.push_shot(from, rotate(aim, a), speed * 1.15);
+                }
+            }
+            BossAttack::Fan => {
+                let n = 5 + ((self.wave - 10) / 10).clamp(0, 2);
+                let spread = 1.1; // total arc, radians
+                for i in 0..n {
+                    let t = if n > 1 {
+                        i as f32 / (n - 1) as f32 - 0.5
+                    } else {
+                        0.0
+                    };
+                    self.push_shot(from, rotate(down, t * spread), speed);
+                }
+            }
+            BossAttack::Ring => {
+                let n = 12;
+                for i in 0..n {
+                    let a = i as f32 / n as f32 * std::f32::consts::TAU;
+                    self.push_shot(from, vec2(a.cos(), a.sin()), speed * 0.85);
+                }
+            }
+        }
+        self.sfx(|a| &a.boss_shot);
+    }
+
+    // Wipe the plasma off the screen (bomb blast, or the boss dying).
+    fn clear_enemy_shots(&mut self) {
+        for s in std::mem::take(&mut self.enemy_shots) {
+            self.burst(s.pos, Color::new(1.0, 0.4, 0.5, 1.0), 5, 70.0);
+        }
     }
 
     fn nearest_targetable_drum(&self, from: Vec2) -> Option<usize> {
@@ -585,6 +704,7 @@ impl Game {
         self.bombs -= 1;
         self.bomb_flash = 0.45;
         self.sfx(|a| &a.explosion);
+        self.clear_enemy_shots(); // the blast sweeps boss plasma away too
 
         let mut bugs = std::mem::take(&mut self.bugs);
         for bug in &mut bugs {
@@ -634,7 +754,15 @@ impl Game {
     }
 
     fn lose_life(&mut self, at: Vec2) {
+        // Mercy window: a whole volley landing at once costs one life, not the
+        // run. Every damage source funnels through here, so guarding it here
+        // covers bugs, barrels and plasma alike.
+        if self.invuln > 0.0 {
+            self.burst(at, Color::new(0.7, 0.8, 1.0, 1.0), 8, 90.0);
+            return;
+        }
         self.lives -= 1;
+        self.invuln = INVULN;
         self.flash_timer = 0.25;
         self.burst(at, Color::new(1.0, 0.4, 0.3, 1.0), 26, 160.0);
         self.sfx(|a| &a.hurt);
@@ -696,6 +824,9 @@ impl Game {
         if self.shield_timer > 0.0 {
             self.shield_timer -= dt;
         }
+        if self.invuln > 0.0 {
+            self.invuln -= dt;
+        }
 
         // --- Spawn bugs across the wave ---
         if self.bugs_to_spawn > 0 {
@@ -713,6 +844,7 @@ impl Game {
 
         self.update_bullets(dt);
         self.update_bugs(dt);
+        self.update_enemy_shots(dt);
         self.update_drums(dt);
         self.update_powerups(dt);
         self.update_particles(dt);
@@ -746,8 +878,9 @@ impl Game {
             bug.flap += dt * 14.0;
 
             // The boss has its own behaviour: weave across the top, creep down
-            // slowly, and bump the buggy for damage (on a cooldown) rather than
-            // diving for drums. It only dies to sustained gunfire.
+            // slowly, lob telegraphed plasma volleys, and bump the buggy for
+            // damage (on a cooldown) rather than diving for drums. It only dies
+            // to sustained gunfire.
             if bug.boss {
                 bug.wobble += dt;
                 bug.pos.x = (bug.base_x + (bug.wobble * bug.freq).sin() * bug.amp)
@@ -755,6 +888,27 @@ impl Game {
                 bug.pos.y += bug.fall_speed * dt;
                 if bug.hit_cd > 0.0 {
                     bug.hit_cd -= dt;
+                }
+
+                // Ranged attacks, but never while it's still sliding on-screen.
+                if bug.pos.y > 10.0 {
+                    if bug.charge > 0.0 {
+                        bug.charge -= dt;
+                        if bug.charge <= 0.0 {
+                            bug.charge = 0.0;
+                            let (attack, from) =
+                                (bug.attack, vec2(bug.pos.x, bug.pos.y + bug.radius * 0.6));
+                            self.fire_volley(from, attack);
+                        }
+                    } else {
+                        bug.shot_cd -= dt;
+                        if bug.shot_cd <= 0.0 {
+                            bug.shot_cd = self.boss_shot_interval();
+                            bug.charge = BOSS_CHARGE;
+                            bug.attack = self.pick_attack();
+                            self.sfx(|a| &a.boss_charge);
+                        }
+                    }
                 }
                 if bug.pos.y + bug.radius >= py
                     && (bug.pos.x - self.player_x).abs() < PLAYER_W * 0.5 + bug.radius
@@ -882,6 +1036,7 @@ impl Game {
                             spin: 0.0,
                         });
                         self.flash_timer = 0.25;
+                        self.clear_enemy_shots(); // its plasma dies with it
                     } else {
                         self.score += 50;
                         kills.push((bug.pos, bug.color));
@@ -925,6 +1080,57 @@ impl Game {
 
         bugs.retain(|b| b.hp > 0);
         self.bugs = bugs;
+    }
+
+    // Boss plasma: travels, strikes the buggy (or bounces off its shield), and
+    // splashes harmlessly into the lunar dust.
+    fn update_enemy_shots(&mut self, dt: f32) {
+        let py = player_y();
+        let gy = ground_y();
+        let px = self.player_x;
+        let shielded = self.shield_timer > 0.0;
+        let p_left = px - PLAYER_W * 0.5;
+        let p_right = px + PLAYER_W * 0.5;
+        let p_top = py - 8.0;
+        let p_bottom = py + PLAYER_H;
+
+        let mut life_hits: Vec<Vec2> = Vec::new();
+        let mut shield_hits: Vec<Vec2> = Vec::new();
+        let mut dust: Vec<Vec2> = Vec::new();
+
+        for s in &mut self.enemy_shots {
+            s.pos += s.vel * dt;
+            s.spin += dt * 6.0;
+
+            // Circle ↔ player rect: nearest point on the hull to the bolt.
+            let near = vec2(s.pos.x.clamp(p_left, p_right), s.pos.y.clamp(p_top, p_bottom));
+            if s.pos.distance(near) < SHOT_R {
+                s.spent = true;
+                if shielded {
+                    shield_hits.push(s.pos);
+                } else {
+                    life_hits.push(s.pos);
+                }
+            } else if s.pos.y > gy {
+                s.spent = true;
+                dust.push(vec2(s.pos.x, gy));
+            }
+        }
+
+        for at in dust {
+            self.burst(at, Color::new(0.8, 0.5, 0.55, 1.0), 6, 60.0);
+        }
+        for at in shield_hits {
+            self.burst(at, Color::new(0.5, 1.0, 0.6, 1.0), 12, 110.0);
+            self.sfx(|a| &a.hit);
+        }
+        for at in life_hits {
+            self.lose_life(at);
+        }
+
+        let w = screen_width();
+        self.enemy_shots
+            .retain(|s| !s.spent && s.pos.y > -40.0 && s.pos.x > -40.0 && s.pos.x < w + 40.0);
     }
 
     fn update_drums(&mut self, dt: f32) {
@@ -1247,6 +1453,19 @@ impl Game {
             );
         }
 
+        // Boss plasma — a hot white core inside a magenta glow.
+        for s in &self.enemy_shots {
+            let pulse = 0.8 + 0.2 * (self.time * 14.0 + s.spin).sin();
+            draw_circle(s.pos.x, s.pos.y, SHOT_R * 1.9, Color::new(1.0, 0.25, 0.4, 0.18));
+            draw_circle(s.pos.x, s.pos.y, SHOT_R * pulse, Color::new(1.0, 0.4, 0.5, 1.0));
+            draw_circle(
+                s.pos.x,
+                s.pos.y,
+                SHOT_R * 0.45,
+                Color::new(1.0, 0.95, 0.85, 1.0),
+            );
+        }
+
         // Bugs.
         for bug in &self.bugs {
             self.draw_bug(bug);
@@ -1309,6 +1528,27 @@ impl Game {
         draw_circle(x + r * 0.35, y - r * 0.1, r * 0.22, WHITE);
         draw_circle(x - r * 0.35, y - r * 0.1, r * 0.1, BLACK);
         draw_circle(x + r * 0.35, y - r * 0.1, r * 0.1, BLACK);
+
+        // Volley wind-up: a ring collapsing into a swelling core under the
+        // boss's belly. Aimed bursts also paint the firing line, so the player
+        // can read *where* the shots are about to go, not just when.
+        if bug.boss && bug.charge > 0.0 {
+            let t = (1.0 - bug.charge / BOSS_CHARGE).clamp(0.0, 1.0); // 0 → 1
+            let (mx, my) = (x, y + r * 0.6);
+            if bug.attack == BossAttack::Aimed {
+                let aim = (vec2(self.player_x, player_y()) - vec2(mx, my)).normalize_or_zero();
+                let end = vec2(mx, my) + aim * 900.0;
+                draw_line(mx, my, end.x, end.y, 1.5, Color::new(1.0, 0.35, 0.45, 0.15 + 0.3 * t));
+            }
+            draw_circle_lines(
+                mx,
+                my,
+                r * (1.3 - 0.9 * t),
+                2.0,
+                Color::new(1.0, 0.5, 0.6, 0.3 + 0.6 * t),
+            );
+            draw_circle(mx, my, 3.0 + 8.0 * t, Color::new(1.0, 0.6 + 0.3 * t, 0.55, 0.55 + 0.45 * t));
+        }
     }
 
     // A health bar floating above the boss.
@@ -1327,7 +1567,13 @@ impl Game {
         let y = player_y();
         let x = self.player_x;
         let hw = PLAYER_W * 0.5;
-        let body = Color::new(0.6, 0.85, 1.0, 1.0);
+        // Flicker through the post-hit mercy window so the player can see it.
+        let alpha = if self.invuln > 0.0 {
+            0.35 + 0.4 * (self.time * 26.0).sin().max(0.0)
+        } else {
+            1.0
+        };
+        let body = Color::new(0.6, 0.85, 1.0, alpha);
         // Hull.
         draw_rectangle(x - hw, y + 6.0, PLAYER_W, PLAYER_H - 6.0, body);
         draw_triangle(
@@ -1337,10 +1583,10 @@ impl Game {
             body,
         );
         // Cannon.
-        draw_rectangle(x - 3.0, y - 14.0, 6.0, 12.0, Color::new(0.8, 0.95, 1.0, 1.0));
+        draw_rectangle(x - 3.0, y - 14.0, 6.0, 12.0, Color::new(0.8, 0.95, 1.0, alpha));
         // Wheels.
-        draw_circle(x - hw * 0.55, y + PLAYER_H, 6.0, Color::new(0.3, 0.3, 0.4, 1.0));
-        draw_circle(x + hw * 0.55, y + PLAYER_H, 6.0, Color::new(0.3, 0.3, 0.4, 1.0));
+        draw_circle(x - hw * 0.55, y + PLAYER_H, 6.0, Color::new(0.3, 0.3, 0.4, alpha));
+        draw_circle(x + hw * 0.55, y + PLAYER_H, 6.0, Color::new(0.3, 0.3, 0.4, alpha));
         // Shield bubble.
         if self.shield_timer > 0.0 {
             let pulse = 0.4 + 0.3 * (self.time * 8.0).sin();

@@ -4,6 +4,22 @@ All notable changes to Moon Bugs are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Boss projectile attacks** — bosses now shell the surface with plasma
+  volleys in three patterns: an aimed 3-shot burst that leads the buggy, a wide
+  downward fan (5–7 bolts, wider on later bosses), and a 12-bolt radial ring
+  from wave 20. Every volley is telegraphed by a ~0.65s charge-up — a ring
+  collapsing into a swelling core under the boss, plus a firing line for aimed
+  bursts — with matching charge and launch SFX (`boss_charge.wav`,
+  `boss_shot.wav`, both procedurally generated). Volley spacing and bolt speed
+  tighten with the wave. Bolts are absorbed by the shield, fizzle out in the
+  lunar dust, and are swept away by a bomb or by the boss's own death.
+- **Post-hit mercy window** — taking a hit grants ~1.2s of invulnerability
+  (the buggy flickers). Applies to every damage source, so a single volley,
+  swarm, or falling barrel costs one life instead of several at once.
+
 ## [0.3.0] - 2026-06-23
 
 ### Added
