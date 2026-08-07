@@ -24,6 +24,27 @@ git tag v0.1.0
 git push origin v0.1.0     # → CI builds all platforms and publishes the release
 ```
 
+## Play in a browser
+
+The game also builds to WebAssembly and is published to GitHub Pages on every
+push to `main` — play it at **[yarivha.github.io/MoonBugs](https://yarivha.github.io/MoonBugs/)**
+(sound and all; the wasm is fully self-contained).
+
+Build it yourself:
+
+```sh
+./tools/build_web.sh                        # -> dist/web/
+python3 -m http.server -d dist/web 8080     # then open http://localhost:8080
+```
+
+The wasm is *fetched* by the page, so opening `index.html` over `file://` will
+not work — it has to be served over HTTP. Two things worth knowing if you adapt
+`web/index.html`: the canvas's `width`/`height` attributes are the game
+resolution on the web (`Conf`'s window size applies only to the native window),
+and the canvas needs focus before it sees any key events. The screen also stays
+black for the first few frames while the browser decodes the 12 embedded audio
+clips, which macroquad awaits before drawing.
+
 ## Run it (from source)
 
 ```sh
@@ -126,4 +147,5 @@ python3 tools/gen_icon.py   # writes assets/icon.png + assets/icon_*.rgba
 
 - Persistent high score to disk.
 - Gamepad support.
-- WebAssembly build (`cargo build --target wasm32-unknown-unknown`) to play in a browser.
+- A loading screen for the web build, instead of the brief black frame while
+  the audio decodes.

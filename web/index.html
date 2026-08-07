@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Moon Bugs — Lunar Defense</title>
+  <meta name="description" content="Defend a row of fuel drums on the lunar surface from swooping alien bugs — a modern homage to Windmill Software's 1983 Moon Bugs." />
+  <style>
+    html, body {
+      margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+      background: #07070f; color: #b9b9c8;
+      font: 14px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+    }
+    canvas { display: block; outline: none; max-width: 100%; }
+    #hint { margin-top: 10px; opacity: .65; text-align: center; padding: 0 12px; }
+  </style>
+</head>
+<body>
+  <!-- macroquad renders into this canvas. Its width/height attributes ARE the
+       game resolution on the web: Conf's window_width / window_height only
+       apply to the native window. tabindex lets the canvas take keyboard
+       focus, without which no key events reach the game.
+
+       The canvas stays black for the first few frames: on wasm every sound is
+       decoded by the browser, and macroquad awaits each one before the first
+       frame is drawn. It clears as soon as the 12 clips are in. -->
+  <canvas id="glcanvas" tabindex="1" width="900" height="640"></canvas>
+  <p id="hint">Click the game, then press ENTER to launch. &nbsp;·&nbsp; Sound and music included — <code>M</code> / <code>N</code> to mute.</p>
+
+  <script>
+    // macroquad 0.4's mq_js_bundle.js is "use strict" yet assigns to a bare,
+    // undeclared `register_plugin` in its quad_net section. That throws a
+    // ReferenceError which aborts the tail of the bundle. Pre-declaring the
+    // global here makes the assignment legal.
+    var register_plugin;
+  </script>
+  <script src="mq_js_bundle.js"></script>
+  <script>
+    // Wrapped in an IIFE on purpose: the bundle declares top-level `canvas`
+    // and `gl`, and re-declaring either name here throws a SyntaxError that
+    // silently kills this entire script (so load() would never run).
+    (function () {
+      var mb = document.getElementById("glcanvas");
+      mb.focus();
+      document.addEventListener("click", function () { mb.focus(); });
+      load("moonbugs.wasm");
+    })();
+  </script>
+</body>
+</html>

@@ -4,6 +4,24 @@ All notable changes to Moon Bugs are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-08-07
+
+### Added
+- **Play in a browser** — the game now builds to WebAssembly and is published
+  to GitHub Pages on every push to `main` (new `Web` workflow), so it is
+  playable at `yarivha.github.io/MoonBugs` with sound and music intact. No
+  game-code changes were needed: `tools/build_web.sh` assembles a static
+  `dist/web/` from the wasm, macroquad's JS glue (version-matched to
+  `Cargo.lock`), and the new `web/index.html` shell.
+
+### Fixed
+- The web shell works around two macroquad 0.4 web gotchas: its
+  `mq_js_bundle.js` is `"use strict"` but assigns to an undeclared
+  `register_plugin` (so the page pre-declares it, otherwise the tail of the
+  bundle is aborted by a ReferenceError), and the bundle declares top-level
+  `canvas`/`gl` (so the page's own script is wrapped in an IIFE to avoid a
+  fatal redeclaration).
+
 ## [0.4.0] - 2026-08-06
 
 ### Added
@@ -81,6 +99,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Waves no longer stall: fleeing bugs that leave the top of the screen are
   retired, so the "all bugs cleared" check fires correctly.
 
+[0.5.0]: https://github.com/yarivha/MoonBugs/releases/tag/v0.5.0
 [0.4.0]: https://github.com/yarivha/MoonBugs/releases/tag/v0.4.0
 [0.3.0]: https://github.com/yarivha/MoonBugs/releases/tag/v0.3.0
 [0.2.0]: https://github.com/yarivha/MoonBugs/releases/tag/v0.2.0
