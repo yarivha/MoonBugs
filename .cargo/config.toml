@@ -1,0 +1,10 @@
+# miniquad/quad-snd declare their JS-backed hooks (glGetIntegerv, audio_init,
+# now, ...) as plain `extern "C"` functions with no #[link(wasm_import_module)].
+# The macroquad JS bundle supplies them at runtime, but newer rustc/lld no
+# longer emit such symbols as wasm imports implicitly — they fail the link with
+# "undefined symbol: glGetIntegerv" and friends. --allow-undefined tells lld to
+# emit them as `env` imports, which is exactly what mq_js_bundle.js provides.
+#
+# Scoped to the wasm target, so native builds are untouched.
+[target.wasm32-unknown-unknown]
+rustflags = ["-C", "link-arg=--allow-undefined"]

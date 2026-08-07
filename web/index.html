@@ -44,7 +44,19 @@
       var mb = document.getElementById("glcanvas");
       mb.focus();
       document.addEventListener("click", function () { mb.focus(); });
-      load("moonbugs.wasm");
+
+      // Don't start until the canvas actually has a laid-out box. miniquad
+      // reads its size once at init and never re-reads it, so booting in a
+      // page that hasn't been laid out yet (a hidden or background tab, where
+      // clientWidth reads 0) leaves a 0x0 canvas for good. requestAnimationFrame
+      // is paused while hidden, so this simply waits for the page to be shown.
+      (function boot() {
+        if (mb.clientWidth === 0 || mb.clientHeight === 0) {
+          requestAnimationFrame(boot);
+          return;
+        }
+        load("moonbugs.wasm");
+      })();
     })();
   </script>
 </body>
