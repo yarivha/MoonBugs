@@ -40,13 +40,12 @@ jobs:
       - name: Build dist/web
         run: ./tools/build_web.sh
 
-      # enablement: true turns Pages on via the API if it isn't already, so a
-      # fresh clone of this repo deploys without anyone visiting Settings.
-      # It still needs the repo to permit Pages; if it fails, set
-      # Settings -> Pages -> Source: "GitHub Actions" by hand once.
+      # Note: `enablement: true` here does NOT work — creating a Pages site
+      # over the API needs repo-admin rights that the workflow's GITHUB_TOKEN
+      # does not have ("Resource not accessible by integration"). Pages has to
+      # be switched on once by hand: Settings -> Pages -> Source: "GitHub
+      # Actions". After that this step just finds the existing site.
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
