@@ -16,8 +16,10 @@ and it's game over.
 ## Download
 
 Prebuilt binaries for Linux, macOS (Intel + Apple Silicon) and Windows are
-attached to each [GitHub Release](../../releases). They're built automatically
-by the `Release` workflow whenever a `v*` tag is pushed:
+attached to each [GitHub Release](../../releases), alongside a
+`moonbugs-<version>-web.zip` — the playable web build, for self-hosting or
+running offline (unzip, then serve the folder over HTTP). They're built
+automatically by the `Release` workflow whenever a `v*` tag is pushed:
 
 ```sh
 git tag v0.1.0

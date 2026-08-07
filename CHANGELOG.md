@@ -13,6 +13,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   game-code changes were needed: `tools/build_web.sh` assembles a static
   `dist/web/` from the wasm, macroquad's JS glue (version-matched to
   `Cargo.lock`), and the new `web/index.html` shell.
+- **Web build attached to releases** — each `v*` tag now also publishes
+  `moonbugs-<version>-web.zip` (the wasm, JS glue and HTML shell), so the
+  browser version can be self-hosted or played offline.
 
 ### Fixed
 - The web shell works around two macroquad 0.4 web gotchas: its

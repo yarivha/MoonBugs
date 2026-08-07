@@ -106,9 +106,47 @@ jobs:
           path: ${{ env.ASSET }}
           if-no-files-found: error
 
+  # The playable web build, zipped so it can be self-hosted or played offline
+  # from any static server. Separate from the matrix above: it targets wasm
+  # rather than a host OS, and needs no system dev packages.
+  web:
+    name: Build web bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain (with wasm target)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache cargo build
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: web
+
+      - name: Build dist/web
+        run: ./tools/build_web.sh
+
+      - name: Package (web)
+        shell: bash
+        run: |
+          DIST="moonbugs-${{ github.ref_name }}-web"
+          mv dist/web "$DIST"
+          cp README.md "$DIST/"
+          zip -r "$DIST.zip" "$DIST"
+          echo "ASSET=$DIST.zip" >> "$GITHUB_ENV"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: moonbugs-web
+          path: ${{ env.ASSET }}
+          if-no-files-found: error
+
   release:
     name: Publish release
-    needs: build
+    needs: [build, web]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     steps:
