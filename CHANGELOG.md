@@ -13,6 +13,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the Pages URL. v0.5.0 shipped before this job existed, so it carries the
   three desktop archives only.
 
+### Fixed
+- The boss-wave banner showed a tofu box instead of a dash — it used an em
+  dash, which macroquad's default font has no glyph for. Now plain ASCII.
+
 ### Removed
 - **The GitHub Pages deployment** — the `Web` workflow is gone; the browser
   build is no longer auto-published to a URL. It still builds via

@@ -486,7 +486,9 @@ impl Game {
             // clear until the boss is destroyed (it's in self.bugs).
             self.spawn_boss();
             self.bugs_to_spawn = 6;
-            self.banner_text = format!("BOSS  —  WAVE {}", self.wave);
+            // ASCII only: macroquad's default font has no em dash, so a "—"
+            // here renders as a tofu box.
+            self.banner_text = format!("BOSS  -  WAVE {}", self.wave);
             self.banner_timer = 2.4;
         } else {
             self.bugs_to_spawn = 3 + self.wave * 3 / 2;
