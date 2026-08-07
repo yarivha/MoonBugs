@@ -10,8 +10,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Web build attached to GitHub Releases** — each `v*` tag now also publishes
   `moonbugs-<version>-web.zip` (wasm + macroquad's JS glue + the HTML shell),
   so the browser version can be self-hosted or played offline instead of only
-  at the Pages URL. v0.5.0 shipped before this job existed, so it carries the
+  the Pages URL. v0.5.0 shipped before this job existed, so it carries the
   three desktop archives only.
+
+### Removed
+- **The GitHub Pages deployment** — the `Web` workflow is gone; the browser
+  build is no longer auto-published to a URL. It still builds via
+  `tools/build_web.sh` and ships as a release zip, to be hosted wherever you
+  like.
 
 ## [0.5.0] - 2026-08-07
 

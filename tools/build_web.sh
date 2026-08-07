@@ -3,9 +3,8 @@
 #  build_web.sh — assemble the WebAssembly build into dist/web/
 #
 #  Produces a fully static directory (index.html + mq_js_bundle.js +
-#  moonbugs.wasm) that can be served by any HTTP server, or published to
-#  GitHub Pages. All game assets are baked into the .wasm via include_bytes!,
-#  so nothing else needs hosting.
+#  moonbugs.wasm) that can be served by any HTTP server. All game assets are
+#  baked into the .wasm via include_bytes!, so nothing else needs hosting.
 #
 #  Usage:  ./tools/build_web.sh   &&   python3 -m http.server -d dist/web 8080
 # ============================================================================

@@ -28,11 +28,9 @@ git push origin v0.1.0     # → CI builds all platforms and publishes the relea
 
 ## Play in a browser
 
-The game also builds to WebAssembly and is published to GitHub Pages on every
-push to `main` — play it at **[yarivha.github.io/MoonBugs](https://yarivha.github.io/MoonBugs/)**
-(sound and all; the wasm is fully self-contained).
-
-Build it yourself:
+The game also builds to WebAssembly, with sound and all — the wasm is fully
+self-contained. Grab `moonbugs-<version>-web.zip` from a
+[Release](../../releases) and serve the unzipped folder, or build it yourself:
 
 ```sh
 ./tools/build_web.sh                        # -> dist/web/
