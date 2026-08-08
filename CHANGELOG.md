@@ -13,6 +13,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the way. The bomb keeps a button (bottom right, with its count) since it is a
   discrete action.
 
+### Added
+- The build version is stamped in the bottom-left corner of the main menu,
+  dim and out of the way, so you can tell at a glance which build a machine
+  or phone is actually running. Taken from `Cargo.toml` at compile time, so
+  it cannot drift from the release.
+
 ### Fixed
 - **The web build could hang before its first frame.** macroquad's wasm loader
   parks in `while !sound.is_loaded() { next_frame().await }`, so awaiting all

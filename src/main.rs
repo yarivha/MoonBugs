@@ -1866,6 +1866,18 @@ impl Game {
             };
             self.draw_center_text_y(prompt, 30.0, YELLOW, screen_height() * 0.68);
         }
+        // Build version, tucked into the bottom-left corner: dim enough to stay
+        // out of the way, legible enough to answer "which build is this?".
+        // Taken from Cargo.toml at compile time so it can never drift.
+        let k = ui_scale();
+        draw_text(
+            concat!("v", env!("CARGO_PKG_VERSION")),
+            8.0 * k,
+            screen_height() - 8.0 * k,
+            16.0 * k,
+            Color::new(0.45, 0.45, 0.55, 0.55),
+        );
+
         if self.high_score > 0 {
             self.draw_center_text_y(
                 &format!("Best: {}", self.high_score),
