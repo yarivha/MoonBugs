@@ -4,6 +4,27 @@ All notable changes to Moon Bugs are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-08-08
+
+### Added
+- **Touch controls** — the game is fully playable on a phone or tablet with no
+  keyboard. Tap anywhere to start or restart (the stand-in for `Enter`), and
+  play with on-screen thumb pads: move left/right, fire, and bomb. The pads
+  appear only after the first touch, so desktop play is untouched, and the
+  audio buttons now respond to taps as well as clicks.
+- **The interface scales to the display** — every HUD offset, text size and
+  button was authored for the 900x640 design size and is now scaled to fit
+  both axes, so the menu no longer overflows or overlaps on a small phone
+  canvas (and stays proportional on a large monitor).
+
+### Fixed
+- Touch positions were out by the device pixel ratio: macroquad reports screen
+  size in logical pixels but stores touch positions in physical ones, so on a
+  2x phone screen every tap landed at double coordinates and missed every
+  button. Converted once, at the input boundary.
+- The web shell now fills the viewport and sets `touch-action: none`, so
+  browser scroll and double-tap zoom no longer fight the controls.
+
 ## [0.5.2] - 2026-08-07
 
 ### Fixed
@@ -120,6 +141,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Waves no longer stall: fleeing bugs that leave the top of the screen are
   retired, so the "all bugs cleared" check fires correctly.
 
+[0.6.0]: https://github.com/yarivha/MoonBugs/releases/tag/v0.6.0
 [0.5.2]: https://github.com/yarivha/MoonBugs/releases/tag/v0.5.2
 [0.5.1]: https://github.com/yarivha/MoonBugs/releases/tag/v0.5.1
 [0.5.0]: https://github.com/yarivha/MoonBugs/releases/tag/v0.5.0

@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- user-scalable=no stops double-tap zoom from fighting the fire button;
+       viewport-fit=cover fills past the notch on phones. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Moon Bugs — Lunar Defense</title>
   <meta name="description" content="Defend a row of fuel drums on the lunar surface from swooping alien bugs — a modern homage to Windmill Software's 1983 Moon Bugs." />
   <style>
@@ -10,23 +12,40 @@
       margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
       background: #07070f; color: #b9b9c8;
       font: 14px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      display: flex; align-items: center; justify-content: center;
     }
-    canvas { display: block; outline: none; max-width: 100%; }
-    #hint { margin-top: 10px; opacity: .65; text-align: center; padding: 0 12px; }
+    /* The canvas fills the viewport and is sized 1:1 with it. Do NOT scale it
+       with CSS: the macroquad bundle reports pointer positions as
+       (clientX - rect.left) * devicePixelRatio, with no correction for a
+       display size that differs from the backing store — every tap would land
+       somewhere else. Sizing is left to the bundle, which sets
+       canvas.width = clientWidth * dpr and re-runs it on window resize. */
+    canvas {
+      display: block; outline: none;
+      /* Fill the screen. The game lays itself out from screen_width()/
+         screen_height() and scales its UI to fit, so any aspect works and a
+         phone gets the whole display rather than a letterboxed strip. */
+      width: 100vw; height: 100vh;
+      touch-action: none;          /* no scroll/pinch stealing the controls */
+      -webkit-tap-highlight-color: transparent;
+    }
+    /* Overlaid, never in the layout, and never eating a tap. */
+    #hint {
+      position: fixed; left: 0; right: 0; bottom: env(safe-area-inset-bottom, 6px);
+      margin: 0; padding: 4px 12px; text-align: center;
+      font-size: 12px; opacity: .5; pointer-events: none;
+    }
   </style>
 </head>
 <body>
-  <!-- macroquad renders into this canvas. Its width/height attributes ARE the
-       game resolution on the web: Conf's window_width / window_height only
-       apply to the native window. tabindex lets the canvas take keyboard
-       focus, without which no key events reach the game.
+  <!-- tabindex lets the canvas take keyboard focus, without which no key
+       events reach the game on desktop.
 
        The canvas stays black for the first few frames: on wasm every sound is
        decoded by the browser, and macroquad awaits each one before the first
        frame is drawn. It clears as soon as the 12 clips are in. -->
-  <canvas id="glcanvas" tabindex="1" width="900" height="640"></canvas>
-  <p id="hint">Click the game, then press ENTER to launch. &nbsp;·&nbsp; Sound and music included — <code>M</code> / <code>N</code> to mute.</p>
+  <canvas id="glcanvas" tabindex="1"></canvas>
+  <p id="hint">Desktop: click, then ENTER. &nbsp;·&nbsp; Phone: tap to start, thumb pads to play.</p>
 
   <script>
     // macroquad 0.4's mq_js_bundle.js is "use strict" yet assigns to a bare,
@@ -46,10 +65,10 @@
       document.addEventListener("click", function () { mb.focus(); });
 
       // Don't start until the canvas actually has a laid-out box. miniquad
-      // reads its size once at init and never re-reads it, so booting in a
-      // page that hasn't been laid out yet (a hidden or background tab, where
-      // clientWidth reads 0) leaves a 0x0 canvas for good. requestAnimationFrame
-      // is paused while hidden, so this simply waits for the page to be shown.
+      // reads its size at init, so booting in a page that hasn't been laid out
+      // yet (a hidden or background tab, where clientWidth reads 0) leaves a
+      // 0x0 canvas for good. requestAnimationFrame is paused while hidden, so
+      // this simply waits for the page to be shown.
       (function boot() {
         if (mb.clientWidth === 0 || mb.clientHeight === 0) {
           requestAnimationFrame(boot);

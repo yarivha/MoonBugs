@@ -81,6 +81,7 @@ const DRUM_H: f32 = 28.0;
 const POWERUP_CHANCE: f32 = 0.20; // chance a killed bug drops a power-up
 const POWERUP_DURATION: f32 = 8.0;
 const SHIELD_DURATION: f32 = 6.0;
+const TOUCH_PAD_ALPHA: f32 = 0.22; // on-screen buttons stay out of the way
 const SHOT_R: f32 = 7.0; // radius of a boss plasma shot
 const INVULN: f32 = 1.2; // mercy window after a hit, so one volley costs one life
 const BOSS_CHARGE: f32 = 0.65; // wind-up before a volley — the player's cue to move
@@ -91,6 +92,18 @@ fn ground_y() -> f32 {
 }
 fn player_y() -> f32 {
     ground_y() - PLAYER_H
+}
+
+// UI scale factor. Every text size and HUD offset is authored against the
+// 900x640 design size; on a phone the canvas is far smaller (and on a big
+// monitor far larger), where fixed pixel sizes overlap or shrink to nothing.
+// Scaling by height keeps the whole interface proportional.
+fn ui_scale() -> f32 {
+    // Fit against BOTH axes: scaling by height alone makes a narrow portrait
+    // phone render text far wider than the screen.
+    let by_w = screen_width() / 900.0;
+    let by_h = screen_height() / 640.0;
+    by_w.min(by_h).clamp(0.45, 2.5)
 }
 
 // Rotate a vector by `a` radians (counter-clockwise in screen space).
@@ -305,6 +318,7 @@ struct Game {
     mute_sfx: bool,
     mute_music: bool,
     boss_music: bool, // which track is currently looping
+    touch_ui: bool,   // a touch has been seen: draw the on-screen controls
 }
 
 impl Game {
@@ -349,6 +363,7 @@ impl Game {
             mute_sfx: false,
             mute_music: false,
             boss_music: false,
+            touch_ui: false,
         }
     }
 
@@ -408,24 +423,98 @@ impl Game {
 
     // The two clickable top-right toggle buttons: (sfx, music).
     fn ui_buttons() -> (Rect, Rect) {
-        let (w, h, pad, gap, y) = (36.0, 28.0, 10.0, 8.0, 8.0);
+        let k = ui_scale();
+        let (w, h, pad, gap, y) = (36.0 * k, 28.0 * k, 10.0 * k, 8.0 * k, 8.0 * k);
         let music = Rect::new(screen_width() - w - pad, y, w, h);
         let sfx = Rect::new(music.x - w - gap, y, w, h);
         (sfx, music)
     }
 
-    // Handle clicks on the audio toggle buttons (works in every phase).
-    fn handle_ui_click(&mut self) {
-        if !is_mouse_button_pressed(MouseButton::Left) {
-            return;
-        }
-        let (mx, my) = mouse_position();
-        let p = vec2(mx, my);
+    // -- Touch input ---------------------------------------------------------
+    // Phones have no keyboard, so everything the keys do is also reachable by
+    // touch: on-screen pads for move/fire/bomb, and a tap anywhere else to
+    // start or restart. The pads only appear once a touch has been seen, so a
+    // desktop player never sees them.
+
+    // Touch positions arrive in *physical* pixels — macroquad stores what the
+    // platform reports — while screen_width()/screen_height() and therefore
+    // everything drawn are in logical pixels (physical / dpi_scale). On a 2x
+    // phone screen that puts every touch at double coordinates, missing every
+    // button. Dividing here converts once, at the boundary.
+    fn touch_points(started_only: bool) -> Vec<Vec2> {
+        let k = screen_dpi_scale().max(0.001);
+        touches()
+            .iter()
+            .filter(|t| {
+                if started_only {
+                    t.phase == TouchPhase::Started
+                } else {
+                    t.phase != TouchPhase::Ended && t.phase != TouchPhase::Cancelled
+                }
+            })
+            .map(|t| t.position / k)
+            .collect()
+    }
+
+    // Positions of touches that began this frame (taps).
+    fn taps() -> Vec<Vec2> {
+        Self::touch_points(true)
+    }
+
+    // Positions of every touch still on the glass (held pads).
+    fn held() -> Vec<Vec2> {
+        Self::touch_points(false)
+    }
+
+    // The on-screen pads: (left, right, fire, bomb). Sized from the screen so
+    // they stay thumb-sized whatever the device resolution — on a high-DPI
+    // phone the canvas is in physical pixels, so a fixed pixel size would come
+    // out tiny.
+    fn touch_pads() -> (Rect, Rect, Rect, Rect) {
+        let w = screen_width();
+        let h = screen_height();
+        // Thumb-sized in logical (CSS) pixels whatever the canvas shape, but
+        // never so large it swallows a short playfield.
+        let s = (w.min(h) * 0.16).clamp(56.0, 96.0); // pad edge
+        let m = s * 0.28; // margin
+        let bottom = h - s - m;
+        let left = Rect::new(m, bottom, s, s);
+        let right = Rect::new(m * 2.0 + s, bottom, s, s);
+        let fire = Rect::new(w - s - m, bottom, s, s);
+        let bomb = Rect::new(w - s - m, bottom - s - m * 0.6, s * 0.72, s * 0.72);
+        (left, right, fire, bomb)
+    }
+
+    // Did a tap land on something that is not a pad or an audio button? That
+    // means "start / restart", the touch stand-in for Enter.
+    fn tapped_empty_space(&self) -> bool {
         let (sfx_r, music_r) = Self::ui_buttons();
-        if sfx_r.contains(p) {
-            self.mute_sfx = !self.mute_sfx;
-        } else if music_r.contains(p) {
-            self.toggle_music();
+        let (l, r, f, b) = Self::touch_pads();
+        Self::taps().iter().any(|&p| {
+            !sfx_r.contains(p)
+                && !music_r.contains(p)
+                && !l.contains(p)
+                && !r.contains(p)
+                && !f.contains(p)
+                && !b.contains(p)
+        })
+    }
+
+    // Handle clicks/taps on the audio toggle buttons (works in every phase).
+    // Touch events do not synthesize mouse clicks here, so both are checked.
+    fn handle_ui_click(&mut self) {
+        let mut hits: Vec<Vec2> = Self::taps();
+        if is_mouse_button_pressed(MouseButton::Left) {
+            let (mx, my) = mouse_position();
+            hits.push(vec2(mx, my));
+        }
+        let (sfx_r, music_r) = Self::ui_buttons();
+        for p in hits {
+            if sfx_r.contains(p) {
+                self.mute_sfx = !self.mute_sfx;
+            } else if music_r.contains(p) {
+                self.toggle_music();
+            }
         }
     }
 
@@ -795,12 +884,25 @@ impl Game {
             self.bomb_flash -= dt;
         }
 
+        // --- Input: touch pads (phones have no keys) ---
+        let (pad_l, pad_r, pad_fire, pad_bomb) = Self::touch_pads();
+        let held = Self::held();
+        if !held.is_empty() {
+            self.touch_ui = true; // reveal the pads on first contact
+        }
+        let touch_left = held.iter().any(|&p| pad_l.contains(p));
+        let touch_right = held.iter().any(|&p| pad_r.contains(p));
+        let touch_fire = held.iter().any(|&p| pad_fire.contains(p));
+        if Self::taps().iter().any(|&p| pad_bomb.contains(p)) {
+            self.use_bomb();
+        }
+
         // --- Input: movement ---
         let mut dir = 0.0;
-        if is_key_down(KeyCode::Left) || is_key_down(KeyCode::A) {
+        if is_key_down(KeyCode::Left) || is_key_down(KeyCode::A) || touch_left {
             dir -= 1.0;
         }
-        if is_key_down(KeyCode::Right) || is_key_down(KeyCode::D) {
+        if is_key_down(KeyCode::Right) || is_key_down(KeyCode::D) || touch_right {
             dir += 1.0;
         }
         self.player_x += dir * PLAYER_SPEED * dt;
@@ -812,7 +914,7 @@ impl Game {
         if self.cooldown > 0.0 {
             self.cooldown -= dt;
         }
-        if is_key_down(KeyCode::Space) || is_key_down(KeyCode::Up) {
+        if is_key_down(KeyCode::Space) || is_key_down(KeyCode::Up) || touch_fire {
             self.fire();
         }
 
@@ -1274,6 +1376,61 @@ impl Game {
 
         // Audio toggle buttons sit on top in every phase.
         self.draw_ui_buttons();
+
+        // Touch pads, once the player has actually touched the screen.
+        if self.touch_ui && self.phase == Phase::Playing {
+            self.draw_touch_pads();
+        }
+    }
+
+    // Thumb pads for phones: ◀ ▶ on the left, FIRE on the right with the bomb
+    // above it. Deliberately faint so they don't crowd the playfield.
+    fn draw_touch_pads(&self) {
+        let (l, r, f, b) = Self::touch_pads();
+        let held = Self::held();
+        let face = |rect: Rect| {
+            let lit = held.iter().any(|&p| rect.contains(p));
+            let a = if lit { TOUCH_PAD_ALPHA * 2.2 } else { TOUCH_PAD_ALPHA };
+            draw_rectangle(rect.x, rect.y, rect.w, rect.h, Color::new(0.6, 0.8, 1.0, a * 0.5));
+            draw_rectangle_lines(
+                rect.x,
+                rect.y,
+                rect.w,
+                rect.h,
+                2.0,
+                Color::new(0.7, 0.9, 1.0, a + 0.25),
+            );
+        };
+        face(l);
+        face(r);
+        face(f);
+        face(b);
+
+        let ink = Color::new(0.85, 0.95, 1.0, 0.75);
+        // Left / right arrowheads.
+        let (cx, cy, s) = (l.x + l.w * 0.5, l.y + l.h * 0.5, l.w * 0.22);
+        draw_triangle(vec2(cx + s, cy - s), vec2(cx + s, cy + s), vec2(cx - s, cy), ink);
+        let (cx, cy) = (r.x + r.w * 0.5, r.y + r.h * 0.5);
+        draw_triangle(vec2(cx - s, cy - s), vec2(cx - s, cy + s), vec2(cx + s, cy), ink);
+
+        // Fire: a muzzle-flash dot with a bullet above it.
+        let (cx, cy) = (f.x + f.w * 0.5, f.y + f.h * 0.5);
+        draw_circle(cx, cy + s * 0.5, s * 0.6, ink);
+        draw_rectangle(cx - s * 0.18, cy - s * 1.4, s * 0.36, s * 1.3, ink);
+
+        // Bomb: the same lit-fuse bomb the power-up uses.
+        let (cx, cy) = (b.x + b.w * 0.5, b.y + b.h * 0.5);
+        let br = b.w * 0.24;
+        draw_circle(cx, cy + br * 0.3, br, Color::new(0.9, 0.95, 1.0, 0.8));
+        draw_line(
+            cx + br * 0.6,
+            cy - br * 0.6,
+            cx + br * 1.3,
+            cy - br * 1.5,
+            2.0,
+            ink,
+        );
+        draw_circle(cx + br * 1.3, cy - br * 1.5, br * 0.3, Color::new(1.0, 0.9, 0.3, 0.9));
     }
 
     // --- Audio toggle buttons ----------------------------------------------
@@ -1305,12 +1462,13 @@ impl Game {
     }
 
     fn muted_slash(r: Rect) {
+        let k = ui_scale();
         draw_line(
-            r.x + 7.0,
-            r.y + 7.0,
-            r.x + r.w - 7.0,
-            r.y + r.h - 7.0,
-            2.5,
+            r.x + 7.0 * k,
+            r.y + 7.0 * k,
+            r.x + r.w - 7.0 * k,
+            r.y + r.h - 7.0 * k,
+            2.5 * k,
             Color::new(1.0, 0.35, 0.35, 1.0),
         );
     }
@@ -1318,23 +1476,24 @@ impl Game {
     fn draw_speaker_icon(&self, r: Rect, muted: bool) {
         let cx = r.x + r.w * 0.5;
         let cy = r.y + r.h * 0.5;
+        let k = ui_scale(); // the button grew, so the glyph must too
         let col = Self::icon_color(muted);
         // Magnet box + flaring cone.
-        draw_rectangle(cx - 9.0, cy - 3.0, 4.0, 6.0, col);
+        draw_rectangle(cx - 9.0 * k, cy - 3.0 * k, 4.0 * k, 6.0 * k, col);
         draw_triangle(
-            vec2(cx - 5.0, cy),
-            vec2(cx + 3.0, cy - 8.0),
-            vec2(cx + 3.0, cy + 8.0),
+            vec2(cx - 5.0 * k, cy),
+            vec2(cx + 3.0 * k, cy - 8.0 * k),
+            vec2(cx + 3.0 * k, cy + 8.0 * k),
             col,
         );
         if muted {
             Self::muted_slash(r);
         } else {
             // Two little sound waves.
-            draw_line(cx + 6.0, cy - 4.0, cx + 8.0, cy, 1.6, col);
-            draw_line(cx + 8.0, cy, cx + 6.0, cy + 4.0, 1.6, col);
-            draw_line(cx + 9.0, cy - 6.0, cx + 11.0, cy, 1.6, col);
-            draw_line(cx + 11.0, cy, cx + 9.0, cy + 6.0, 1.6, col);
+            draw_line(cx + 6.0 * k, cy - 4.0 * k, cx + 8.0 * k, cy, 1.6 * k, col);
+            draw_line(cx + 8.0 * k, cy, cx + 6.0 * k, cy + 4.0 * k, 1.6 * k, col);
+            draw_line(cx + 9.0 * k, cy - 6.0 * k, cx + 11.0 * k, cy, 1.6 * k, col);
+            draw_line(cx + 11.0 * k, cy, cx + 9.0 * k, cy + 6.0 * k, 1.6 * k, col);
         }
     }
 
@@ -1342,13 +1501,14 @@ impl Game {
         let cx = r.x + r.w * 0.5;
         let cy = r.y + r.h * 0.5;
         let col = Self::icon_color(muted);
-        let h1 = vec2(cx - 5.0, cy + 6.0);
-        let h2 = vec2(cx + 4.0, cy + 6.0);
-        draw_circle(h1.x, h1.y, 3.2, col); // note heads
-        draw_circle(h2.x, h2.y, 3.2, col);
-        draw_line(h1.x + 2.8, h1.y, h1.x + 2.8, cy - 7.0, 1.8, col); // stems
-        draw_line(h2.x + 2.8, h2.y, h2.x + 2.8, cy - 7.0, 1.8, col);
-        draw_line(h1.x + 2.8, cy - 7.0, h2.x + 2.8, cy - 7.0, 2.5, col); // beam
+        let k = ui_scale();
+        let h1 = vec2(cx - 5.0 * k, cy + 6.0 * k);
+        let h2 = vec2(cx + 4.0 * k, cy + 6.0 * k);
+        draw_circle(h1.x, h1.y, 3.2 * k, col); // note heads
+        draw_circle(h2.x, h2.y, 3.2 * k, col);
+        draw_line(h1.x + 2.8 * k, h1.y, h1.x + 2.8 * k, cy - 7.0 * k, 1.8 * k, col); // stems
+        draw_line(h2.x + 2.8 * k, h2.y, h2.x + 2.8 * k, cy - 7.0 * k, 1.8 * k, col);
+        draw_line(h1.x + 2.8 * k, cy - 7.0 * k, h2.x + 2.8 * k, cy - 7.0 * k, 2.5 * k, col); // beam
         if muted {
             Self::muted_slash(r);
         }
@@ -1603,35 +1763,38 @@ impl Game {
     }
 
     fn draw_hud(&self) {
-        draw_text(&format!("SCORE  {}", self.score), 16.0, 30.0, 28.0, WHITE);
+        // Every offset and size here is authored for the 900x640 design size;
+        // k keeps the HUD proportional on a phone canvas or a large display.
+        let k = ui_scale();
+        draw_text(&format!("SCORE  {}", self.score), 16.0 * k, 30.0 * k, 28.0 * k, WHITE);
         draw_text(
             &format!("BEST  {}", self.high_score),
-            16.0,
-            56.0,
-            22.0,
+            16.0 * k,
+            56.0 * k,
+            22.0 * k,
             Color::new(0.7, 0.7, 0.8, 1.0),
         );
         // Wave (centered top).
         let wt = format!("WAVE {}", self.wave);
-        let dim = measure_text(&wt, None, 26, 1.0);
+        let dim = measure_text(&wt, None, (26.0 * k) as u16, 1.0);
         draw_text(
             &wt,
             screen_width() * 0.5 - dim.width * 0.5,
-            30.0,
-            26.0,
+            30.0 * k,
+            26.0 * k,
             Color::new(0.9, 0.9, 0.5, 1.0),
         );
 
         // Lives (top-right hearts), sitting just below the audio buttons.
-        let heart_y = 56.0;
+        let heart_y = 56.0 * k;
         for i in 0..self.lives.max(0) {
-            let cx = screen_width() - 24.0 - i as f32 * 26.0;
-            draw_circle(cx - 4.0, heart_y, 5.0, RED);
-            draw_circle(cx + 4.0, heart_y, 5.0, RED);
+            let cx = screen_width() - 24.0 * k - i as f32 * 26.0 * k;
+            draw_circle(cx - 4.0 * k, heart_y, 5.0 * k, RED);
+            draw_circle(cx + 4.0 * k, heart_y, 5.0 * k, RED);
             draw_triangle(
-                vec2(cx - 9.0, heart_y + 2.0),
-                vec2(cx + 9.0, heart_y + 2.0),
-                vec2(cx, heart_y + 12.0),
+                vec2(cx - 9.0 * k, heart_y + 2.0 * k),
+                vec2(cx + 9.0 * k, heart_y + 2.0 * k),
+                vec2(cx, heart_y + 12.0 * k),
                 RED,
             );
         }
@@ -1639,18 +1802,18 @@ impl Game {
         // Drums remaining.
         draw_text(
             &format!("DRUMS  {}", self.alive_drums()),
-            16.0,
-            82.0,
-            22.0,
+            16.0 * k,
+            82.0 * k,
+            22.0 * k,
             Color::new(0.85, 0.6, 0.2, 1.0),
         );
 
-        // Bombs in reserve (press B to detonate).
+        // Bombs in reserve (press B, or the on-screen pad, to detonate).
         draw_text(
             &format!("BOMBS  {}", self.bombs),
-            16.0,
-            106.0,
-            22.0,
+            16.0 * k,
+            106.0 * k,
+            22.0 * k,
             Color::new(0.95, 0.6, 0.3, 1.0),
         );
 
@@ -1659,9 +1822,9 @@ impl Game {
             let t = format!("{}  {:.0}s", self.weapon.label(), self.weapon_timer.max(0.0));
             draw_text(
                 &t,
-                16.0,
-                screen_height() - 16.0,
-                24.0,
+                16.0 * k,
+                screen_height() - 16.0 * k,
+                24.0 * k,
                 Color::new(0.4, 0.95, 1.0, 1.0),
             );
         }
@@ -1669,9 +1832,9 @@ impl Game {
             let t = format!("SHIELD  {:.0}s", self.shield_timer);
             draw_text(
                 &t,
-                200.0,
-                screen_height() - 16.0,
-                24.0,
+                200.0 * k,
+                screen_height() - 16.0 * k,
+                24.0 * k,
                 Color::new(0.5, 1.0, 0.6, 1.0),
             );
         }
@@ -1704,12 +1867,13 @@ impl Game {
         );
         let blink = (self.time * 3.0).sin() > -0.3;
         if blink {
-            self.draw_center_text_y(
-                "Press ENTER to launch",
-                30.0,
-                YELLOW,
-                screen_height() * 0.68,
-            );
+            // On a phone there is no Enter key, so say what actually works.
+            let prompt = if self.touch_ui {
+                "Tap to launch"
+            } else {
+                "Press ENTER to launch"
+            };
+            self.draw_center_text_y(prompt, 30.0, YELLOW, screen_height() * 0.68);
         }
         if self.high_score > 0 {
             self.draw_center_text_y(
@@ -1755,12 +1919,12 @@ impl Game {
         );
         let blink = (self.time * 3.0).sin() > -0.3;
         if blink {
-            self.draw_center_text_y(
-                "Press ENTER to play again",
-                28.0,
-                YELLOW,
-                screen_height() * 0.62,
-            );
+            let prompt = if self.touch_ui {
+                "Tap to play again"
+            } else {
+                "Press ENTER to play again"
+            };
+            self.draw_center_text_y(prompt, 28.0, YELLOW, screen_height() * 0.62);
         }
     }
 
@@ -1773,6 +1937,9 @@ impl Game {
         self.draw_center_text_y(text, size, color, screen_height() * 0.4);
     }
     fn draw_center_text_y(&self, text: &str, size: f32, color: Color, y: f32) {
+        // Sizes are authored for the 900x640 design; ui_scale() keeps them
+        // readable on a phone canvas and proportional on a large display.
+        let size = size * ui_scale();
         let dim = measure_text(text, None, size as u16, 1.0);
         draw_text(text, screen_width() * 0.5 - dim.width * 0.5, y, size, color);
     }
@@ -1819,7 +1986,12 @@ async fn main() {
         }
         match game.phase {
             Phase::Menu | Phase::GameOver => {
-                if is_key_pressed(KeyCode::Enter) {
+                // A tap on empty space is the touch stand-in for Enter — taps
+                // on the audio buttons are excluded so muting doesn't launch.
+                if is_key_pressed(KeyCode::Enter) || game.tapped_empty_space() {
+                    if !Game::held().is_empty() {
+                        game.touch_ui = true;
+                    }
                     game.start();
                 }
                 game.time += dt; // keep the blink animating

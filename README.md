@@ -38,12 +38,14 @@ python3 -m http.server -d dist/web 8080     # then open http://localhost:8080
 ```
 
 The wasm is *fetched* by the page, so opening `index.html` over `file://` will
-not work — it has to be served over HTTP. Two things worth knowing if you adapt
-`web/index.html`: the canvas's `width`/`height` attributes are the game
-resolution on the web (`Conf`'s window size applies only to the native window),
-and the canvas needs focus before it sees any key events. The screen also stays
-black for the first few frames while the browser decodes the 12 embedded audio
-clips, which macroquad awaits before drawing.
+not work — it has to be served over HTTP. Three things worth knowing if you
+adapt `web/index.html`: the canvas's CSS box is the game resolution on the web
+(the macroquad bundle sets the backing store to `clientWidth * devicePixelRatio`
+and re-runs that on resize, while `Conf`'s window size applies only to the
+native window), so never scale the canvas with CSS or pointer positions land in
+the wrong place; the canvas needs focus before it sees any key events; and the
+screen stays black for the first few frames while the browser decodes the 12
+embedded audio clips, which macroquad awaits before drawing.
 
 ## Run it (from source)
 
@@ -65,6 +67,12 @@ The first build pulls in macroquad and takes a minute; after that it's instant.
 | Mute music | `N` (or the note button, top-right) |
 | Start / restart | `Enter`    |
 | Quit   | `Esc`               |
+
+On a **phone or tablet** the same actions are available by touch — no keyboard
+needed. Tap anywhere to start or restart, then use the on-screen thumb pads:
+`◀` `▶` to move (bottom left), fire (bottom right) and bomb (just above it).
+The pads only appear once you touch the screen, so they never clutter a
+desktop game. The audio buttons are tappable too.
 
 ## Sound
 
