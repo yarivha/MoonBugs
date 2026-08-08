@@ -20,6 +20,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   it cannot drift from the release.
 
 ### Fixed
+- **Esc killed the web build.** It broke out of the game loop, which closes the
+  window on desktop but in a browser simply abandons the canvas — leaving a
+  blank page with only the HTML caption underneath and no way back. In the
+  browser Esc now returns to the start screen (keeping your best score); on
+  desktop it still quits.
 - **The web build could hang before its first frame.** macroquad's wasm loader
   parks in `while !sound.is_loaded() { next_frame().await }`, so awaiting all
   twelve audio clips up front meant nothing was drawn until every decode

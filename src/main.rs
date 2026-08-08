@@ -854,6 +854,17 @@ impl Game {
         }
     }
 
+    // Abandon the current run and return to the menu. Used by Esc in the
+    // browser, where "quit" has nothing to close; native Esc still exits.
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    fn to_menu(&mut self) {
+        if self.score > self.high_score {
+            self.high_score = self.score;
+        }
+        self.switch_music(false);
+        self.phase = Phase::Menu;
+    }
+
     fn game_over(&mut self) {
         self.phase = Phase::GameOver;
         if self.score > self.high_score {
@@ -1991,7 +2002,13 @@ async fn main() {
         let dt = get_frame_time().min(1.0 / 30.0); // clamp to avoid huge steps
 
         // --- Global input ---
+        // Esc quits the native window. In a browser there is no window to
+        // close, and breaking the loop just abandons the canvas mid-frame —
+        // leaving a dead page with no way back — so it returns to the menu.
         if is_key_pressed(KeyCode::Escape) {
+            #[cfg(target_arch = "wasm32")]
+            game.to_menu();
+            #[cfg(not(target_arch = "wasm32"))]
             break;
         }
         game.handle_ui_click(); // audio toggle buttons (any phase)

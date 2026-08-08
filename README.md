@@ -67,7 +67,7 @@ The first build pulls in macroquad and takes a minute; after that it's instant.
 | Mute SFX | `M` (or the speaker button, top-right) |
 | Mute music | `N` (or the note button, top-right) |
 | Start / restart | `Enter`    |
-| Quit   | `Esc`               |
+| Quit / back to menu | `Esc` (quits the desktop app; in a browser it returns to the start screen) |
 
 On a **phone or tablet** no keyboard is needed. Tap anywhere to start or
 restart, then just **hold your finger on the screen**: the buggy drives toward
