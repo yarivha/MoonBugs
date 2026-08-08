@@ -4,6 +4,25 @@ All notable changes to Moon Bugs are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-08-08
+
+### Changed
+- **Touch is now one-thumb: hold anywhere to steer and fire.** The buggy drives
+  toward your finger and the cannon fires while you hold, replacing the
+  separate move/fire pads — you point at where you want to be and it shoots on
+  the way. The bomb keeps a button (bottom right, with its count) since it is a
+  discrete action.
+
+### Fixed
+- **The web build could hang before its first frame.** macroquad's wasm loader
+  parks in `while !sound.is_loaded() { next_frame().await }`, so awaiting all
+  twelve audio clips up front meant nothing was drawn until every decode
+  finished — and on a browser that never finishes (iOS Safari keeps its
+  AudioContext suspended until a user gesture) the page stayed a black screen
+  with nothing to tap. Audio now loads in a coroutine alongside the game loop:
+  the menu is up and playable on the first frame, and the sound joins when it
+  is ready.
+
 ## [0.6.0] - 2026-08-08
 
 ### Added
@@ -141,6 +160,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Waves no longer stall: fleeing bugs that leave the top of the screen are
   retired, so the "all bugs cleared" check fires correctly.
 
+[0.7.0]: https://github.com/yarivha/MoonBugs/releases/tag/v0.7.0
 [0.6.0]: https://github.com/yarivha/MoonBugs/releases/tag/v0.6.0
 [0.5.2]: https://github.com/yarivha/MoonBugs/releases/tag/v0.5.2
 [0.5.1]: https://github.com/yarivha/MoonBugs/releases/tag/v0.5.1

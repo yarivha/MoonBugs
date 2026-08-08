@@ -20,7 +20,9 @@ use macroquad::audio::{
     load_sound_from_bytes, play_sound, play_sound_once, set_sound_volume, stop_sound,
     PlaySoundParams, Sound,
 };
+use macroquad::experimental::coroutines::start_coroutine;
 use macroquad::prelude::*;
+use std::sync::{Arc, Mutex};
 use macroquad::rand::{gen_range, srand};
 
 // ---- Audio -----------------------------------------------------------------
@@ -466,38 +468,28 @@ impl Game {
         Self::touch_points(false)
     }
 
-    // The on-screen pads: (left, right, fire, bomb). Sized from the screen so
-    // they stay thumb-sized whatever the device resolution — on a high-DPI
-    // phone the canvas is in physical pixels, so a fixed pixel size would come
-    // out tiny.
-    fn touch_pads() -> (Rect, Rect, Rect, Rect) {
+    // The only on-screen button left: bombs are a discrete, occasional action,
+    // so they need somewhere deliberate to press. Steering and firing are
+    // handled by touching anywhere else on the screen.
+    fn bomb_pad() -> Rect {
         let w = screen_width();
         let h = screen_height();
-        // Thumb-sized in logical (CSS) pixels whatever the canvas shape, but
-        // never so large it swallows a short playfield.
-        let s = (w.min(h) * 0.16).clamp(56.0, 96.0); // pad edge
-        let m = s * 0.28; // margin
-        let bottom = h - s - m;
-        let left = Rect::new(m, bottom, s, s);
-        let right = Rect::new(m * 2.0 + s, bottom, s, s);
-        let fire = Rect::new(w - s - m, bottom, s, s);
-        let bomb = Rect::new(w - s - m, bottom - s - m * 0.6, s * 0.72, s * 0.72);
-        (left, right, fire, bomb)
+        // Thumb-sized in logical (CSS) pixels whatever the canvas shape.
+        let s = (w.min(h) * 0.13).clamp(48.0, 80.0);
+        let m = s * 0.3;
+        Rect::new(w - s - m, h - s - m, s, s)
+    }
+
+    // A touch here steers/fires rather than pressing a control.
+    fn is_playfield_touch(p: Vec2) -> bool {
+        let (sfx_r, music_r) = Self::ui_buttons();
+        !sfx_r.contains(p) && !music_r.contains(p) && !Self::bomb_pad().contains(p)
     }
 
     // Did a tap land on something that is not a pad or an audio button? That
     // means "start / restart", the touch stand-in for Enter.
     fn tapped_empty_space(&self) -> bool {
-        let (sfx_r, music_r) = Self::ui_buttons();
-        let (l, r, f, b) = Self::touch_pads();
-        Self::taps().iter().any(|&p| {
-            !sfx_r.contains(p)
-                && !music_r.contains(p)
-                && !l.contains(p)
-                && !r.contains(p)
-                && !f.contains(p)
-                && !b.contains(p)
-        })
+        Self::taps().iter().any(|&p| Self::is_playfield_touch(p))
     }
 
     // Handle clicks/taps on the audio toggle buttons (works in every phase).
@@ -884,28 +876,46 @@ impl Game {
             self.bomb_flash -= dt;
         }
 
-        // --- Input: touch pads (phones have no keys) ---
-        let (pad_l, pad_r, pad_fire, pad_bomb) = Self::touch_pads();
+        // --- Input: touch (phones have no keys) ---
+        // Touching anywhere on the playfield does both jobs at once: the buggy
+        // drives toward your finger and the cannon fires while you hold. One
+        // thumb plays the whole game, and there is nothing to aim at but the
+        // place you already want to be.
         let held = Self::held();
         if !held.is_empty() {
-            self.touch_ui = true; // reveal the pads on first contact
+            self.touch_ui = true; // reveal the bomb pad on first contact
         }
-        let touch_left = held.iter().any(|&p| pad_l.contains(p));
-        let touch_right = held.iter().any(|&p| pad_r.contains(p));
-        let touch_fire = held.iter().any(|&p| pad_fire.contains(p));
-        if Self::taps().iter().any(|&p| pad_bomb.contains(p)) {
+        let steer_to = held
+            .iter()
+            .find(|&&p| Self::is_playfield_touch(p))
+            .map(|p| p.x);
+        let touch_fire = steer_to.is_some();
+        if Self::taps().iter().any(|&p| Self::bomb_pad().contains(p)) {
             self.use_bomb();
         }
 
         // --- Input: movement ---
         let mut dir = 0.0;
-        if is_key_down(KeyCode::Left) || is_key_down(KeyCode::A) || touch_left {
+        if is_key_down(KeyCode::Left) || is_key_down(KeyCode::A) {
             dir -= 1.0;
         }
-        if is_key_down(KeyCode::Right) || is_key_down(KeyCode::D) || touch_right {
+        if is_key_down(KeyCode::Right) || is_key_down(KeyCode::D) {
             dir += 1.0;
         }
-        self.player_x += dir * PLAYER_SPEED * dt;
+        let step = PLAYER_SPEED * dt;
+        match steer_to {
+            // Drive toward the finger at the usual speed, and settle exactly on
+            // it once within a step so the buggy never jitters around a target.
+            Some(tx) => {
+                let delta = tx - self.player_x;
+                if delta.abs() <= step {
+                    self.player_x = tx;
+                } else {
+                    self.player_x += delta.signum() * step;
+                }
+            }
+            None => self.player_x += dir * step,
+        }
         self.player_x = self
             .player_x
             .clamp(PLAYER_W * 0.5, screen_width() - PLAYER_W * 0.5);
@@ -1383,54 +1393,35 @@ impl Game {
         }
     }
 
-    // Thumb pads for phones: ◀ ▶ on the left, FIRE on the right with the bomb
-    // above it. Deliberately faint so they don't crowd the playfield.
+    // The one on-screen button on touch devices. Steering and firing need no
+    // button — you touch the playfield — so this is all that has to be drawn.
     fn draw_touch_pads(&self) {
-        let (l, r, f, b) = Self::touch_pads();
+        let b = Self::bomb_pad();
         let held = Self::held();
-        let face = |rect: Rect| {
-            let lit = held.iter().any(|&p| rect.contains(p));
-            let a = if lit { TOUCH_PAD_ALPHA * 2.2 } else { TOUCH_PAD_ALPHA };
-            draw_rectangle(rect.x, rect.y, rect.w, rect.h, Color::new(0.6, 0.8, 1.0, a * 0.5));
-            draw_rectangle_lines(
-                rect.x,
-                rect.y,
-                rect.w,
-                rect.h,
-                2.0,
-                Color::new(0.7, 0.9, 1.0, a + 0.25),
-            );
-        };
-        face(l);
-        face(r);
-        face(f);
-        face(b);
+        let lit = held.iter().any(|&p| b.contains(p));
+        let a = if lit { TOUCH_PAD_ALPHA * 2.2 } else { TOUCH_PAD_ALPHA };
+        draw_rectangle(b.x, b.y, b.w, b.h, Color::new(0.6, 0.8, 1.0, a * 0.5));
+        draw_rectangle_lines(b.x, b.y, b.w, b.h, 2.0, Color::new(0.7, 0.9, 1.0, a + 0.25));
 
+        // The same lit-fuse bomb the power-up uses.
         let ink = Color::new(0.85, 0.95, 1.0, 0.75);
-        // Left / right arrowheads.
-        let (cx, cy, s) = (l.x + l.w * 0.5, l.y + l.h * 0.5, l.w * 0.22);
-        draw_triangle(vec2(cx + s, cy - s), vec2(cx + s, cy + s), vec2(cx - s, cy), ink);
-        let (cx, cy) = (r.x + r.w * 0.5, r.y + r.h * 0.5);
-        draw_triangle(vec2(cx - s, cy - s), vec2(cx - s, cy + s), vec2(cx + s, cy), ink);
-
-        // Fire: a muzzle-flash dot with a bullet above it.
-        let (cx, cy) = (f.x + f.w * 0.5, f.y + f.h * 0.5);
-        draw_circle(cx, cy + s * 0.5, s * 0.6, ink);
-        draw_rectangle(cx - s * 0.18, cy - s * 1.4, s * 0.36, s * 1.3, ink);
-
-        // Bomb: the same lit-fuse bomb the power-up uses.
         let (cx, cy) = (b.x + b.w * 0.5, b.y + b.h * 0.5);
         let br = b.w * 0.24;
         draw_circle(cx, cy + br * 0.3, br, Color::new(0.9, 0.95, 1.0, 0.8));
-        draw_line(
-            cx + br * 0.6,
-            cy - br * 0.6,
-            cx + br * 1.3,
-            cy - br * 1.5,
-            2.0,
-            ink,
-        );
+        draw_line(cx + br * 0.6, cy - br * 0.6, cx + br * 1.3, cy - br * 1.5, 2.0, ink);
         draw_circle(cx + br * 1.3, cy - br * 1.5, br * 0.3, Color::new(1.0, 0.9, 0.3, 0.9));
+
+        // Count left, so a thumb knows what it has.
+        let t = format!("{}", self.bombs);
+        let size = (b.w * 0.34).max(12.0);
+        let dim = measure_text(&t, None, size as u16, 1.0);
+        draw_text(
+            &t,
+            cx - dim.width * 0.5,
+            b.y + b.h - 4.0,
+            size,
+            Color::new(0.95, 0.98, 1.0, 0.8),
+        );
     }
 
     // --- Audio toggle buttons ----------------------------------------------
@@ -1967,8 +1958,22 @@ fn window_conf() -> Conf {
 async fn main() {
     srand(macroquad::miniquad::date::now() as u64);
     let mut game = Game::new();
-    game.audio = Audio::load().await; // None (silent) if assets are missing
-    game.start_music(); // looping background track, runs across all phases
+    // Load the audio *beside* the game loop, not before it. macroquad's wasm
+    // loader parks in `while !sound.is_loaded() { next_frame().await }`, so
+    // awaiting all twelve clips up front means not one frame is drawn until
+    // every decode finishes — and if a browser never finishes (iOS Safari
+    // keeps its AudioContext suspended until a user gesture) the page is a
+    // dead black screen with nothing to tap. As a coroutine the game is
+    // playable immediately and the sound simply arrives when it arrives.
+    let audio_slot: Arc<Mutex<Option<Audio>>> = Arc::new(Mutex::new(None));
+    let slot = audio_slot.clone();
+    start_coroutine(async move {
+        if let Some(a) = Audio::load().await {
+            if let Ok(mut g) = slot.lock() {
+                *g = Some(a);
+            }
+        }
+    });
 
     loop {
         let dt = get_frame_time().min(1.0 / 30.0); // clamp to avoid huge steps
@@ -2009,6 +2014,16 @@ async fn main() {
                 game.time += dt;
                 if is_key_pressed(KeyCode::P) || is_key_pressed(KeyCode::Enter) {
                     game.phase = Phase::Playing;
+                }
+            }
+        }
+
+        // Audio finished decoding in the background — start the music.
+        if game.audio.is_none() {
+            if let Ok(mut slot) = audio_slot.lock() {
+                if let Some(a) = slot.take() {
+                    game.audio = Some(a);
+                    game.start_music();
                 }
             }
         }

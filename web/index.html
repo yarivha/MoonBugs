@@ -39,13 +39,10 @@
 </head>
 <body>
   <!-- tabindex lets the canvas take keyboard focus, without which no key
-       events reach the game on desktop.
-
-       The canvas stays black for the first few frames: on wasm every sound is
-       decoded by the browser, and macroquad awaits each one before the first
-       frame is drawn. It clears as soon as the 12 clips are in. -->
+       events reach the game on desktop. The game draws from its very first
+       frame: audio decodes in the background rather than blocking startup. -->
   <canvas id="glcanvas" tabindex="1"></canvas>
-  <p id="hint">Desktop: click, then ENTER. &nbsp;·&nbsp; Phone: tap to start, thumb pads to play.</p>
+  <p id="hint">Desktop: click, then ENTER. &nbsp;·&nbsp; Phone: tap to start, then hold anywhere — the buggy drives to your finger and fires.</p>
 
   <script>
     // macroquad 0.4's mq_js_bundle.js is "use strict" yet assigns to a bare,
