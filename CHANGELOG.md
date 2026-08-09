@@ -4,6 +4,17 @@ All notable changes to Moon Bugs are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] - 2026-08-08
+
+### Fixed
+- **A redeployed web build could keep running the old code.** The wasm filename
+  never changes between releases, so a browser (or a caching proxy) held the
+  previous binary until it expired, even though the HTML around it updated —
+  and the sample Apache config caches `.wasm` for an hour, making that a
+  guaranteed hour of confusion after every deploy. The page now loads
+  `moonbugs.wasm?v=<version>`, stamped by `tools/build_web.sh`, so each release
+  requests a URL no cache has seen.
+
 ## [0.7.0] - 2026-08-08
 
 ### Changed
@@ -25,11 +36,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   blank page with only the HTML caption underneath and no way back. In the
   browser Esc now returns to the start screen (keeping your best score); on
   desktop it still quits.
-- **A redeployed web build could keep running the old code.** The wasm
-  filename never changes, so a browser (or a caching proxy) held the previous
-  binary until it expired, even though the HTML around it updated. The page now
-  loads `moonbugs.wasm?v=<version>`, stamped by `tools/build_web.sh`, so every
-  release fetches its own code.
 - **The web build could hang before its first frame.** macroquad's wasm loader
   parks in `while !sound.is_loaded() { next_frame().await }`, so awaiting all
   twelve audio clips up front meant nothing was drawn until every decode
@@ -176,6 +182,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Waves no longer stall: fleeing bugs that leave the top of the screen are
   retired, so the "all bugs cleared" check fires correctly.
 
+[0.7.1]: https://github.com/yarivha/MoonBugs/releases/tag/v0.7.1
 [0.7.0]: https://github.com/yarivha/MoonBugs/releases/tag/v0.7.0
 [0.6.0]: https://github.com/yarivha/MoonBugs/releases/tag/v0.6.0
 [0.5.2]: https://github.com/yarivha/MoonBugs/releases/tag/v0.5.2
