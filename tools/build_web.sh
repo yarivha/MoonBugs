@@ -30,7 +30,10 @@ BUNDLE="$(find "${CARGO_HOME:-$HOME/.cargo}/registry/src" -type f \
 mkdir -p "$OUT"
 cp "$ROOT/target/wasm32-unknown-unknown/release/moonbugs.wasm" "$OUT/"
 cp "$BUNDLE" "$OUT/"
-cp "$ROOT/web/index.html" "$OUT/"
+# Stamp the crate version into the wasm URL so a redeploy is never served a
+# stale cached binary (the filename itself never changes).
+VERSION="$(awk -F'"' '/^version = /{print $2; exit}' "$ROOT/Cargo.toml")"
+sed "s/__MB_VERSION__/$VERSION/" "$ROOT/web/index.html" > "$OUT/index.html"
 
 echo "Done -> $OUT"
 ls -lh "$OUT"

@@ -71,7 +71,11 @@
           requestAnimationFrame(boot);
           return;
         }
-        load("moonbugs.wasm");
+        // The ?v= is rewritten to the crate version by tools/build_web.sh.
+        // Filenames are stable across releases, so without it a cached wasm
+        // keeps running the old game after a deploy — the HTML updates (it is
+        // served no-cache) while the code it points at does not.
+        load("moonbugs.wasm?v=__MB_VERSION__");
       })();
     })();
   </script>

@@ -25,6 +25,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   blank page with only the HTML caption underneath and no way back. In the
   browser Esc now returns to the start screen (keeping your best score); on
   desktop it still quits.
+- **A redeployed web build could keep running the old code.** The wasm
+  filename never changes, so a browser (or a caching proxy) held the previous
+  binary until it expired, even though the HTML around it updated. The page now
+  loads `moonbugs.wasm?v=<version>`, stamped by `tools/build_web.sh`, so every
+  release fetches its own code.
 - **The web build could hang before its first frame.** macroquad's wasm loader
   parks in `while !sound.is_loaded() { next_frame().await }`, so awaiting all
   twelve audio clips up front meant nothing was drawn until every decode
