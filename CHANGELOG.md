@@ -15,6 +15,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   one measurement that excludes the toolbars, and re-fitted on resize,
   rotation, and the toolbar collapsing. The web caption is also hidden on
   touch devices, where it lay across the drums.
+- **The version stamp sat under the iPhone home indicator.** `viewport-fit=cover`
+  lets the page reach into the safe areas, burying the bottom row of the game.
+  The canvas now subtracts the safe-area insets and is anchored to the top, so
+  the leftover strip falls where the indicator actually is, and the version is
+  a little higher and brighter.
 
 ### Added
 - **A big moon over the top-left of the sky**, as in the 1983 original —

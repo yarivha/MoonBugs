@@ -8,11 +8,21 @@
   <title>Moon Bugs — Lunar Defense</title>
   <meta name="description" content="Defend a row of fuel drums on the lunar surface from swooping alien bugs — a modern homage to Windmill Software's 1983 Moon Bugs." />
   <style>
+    /* Exposed as custom properties so the sizing script can read the values —
+       env() is not otherwise reachable from JS. */
+    :root {
+      --sab: env(safe-area-inset-bottom, 0px);
+      --sal: env(safe-area-inset-left, 0px);
+      --sar: env(safe-area-inset-right, 0px);
+    }
     html, body {
       margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
       background: #07070f; color: #b9b9c8;
       font: 14px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      display: flex; align-items: center; justify-content: center;
+      /* Top-anchored, horizontally centred: the safe-area shrink below is a
+         bottom inset (the home indicator), so the leftover strip has to fall
+         at the bottom rather than being split half above the game. */
+      display: flex; align-items: flex-start; justify-content: center;
     }
     /* The canvas fills the viewport and is sized 1:1 with it. Do NOT scale it
        with CSS: the macroquad bundle reports pointer positions as
@@ -74,12 +84,31 @@
       // iOS Safari, where 100vh overshoots by the toolbar height; harmless
       // everywhere else. Re-run on resize and rotation — the macroquad bundle
       // watches the canvas box and resizes its backing store to match.
+      function inset(name) {
+        var v = parseFloat(
+          getComputedStyle(document.documentElement).getPropertyValue(name)
+        );
+        return isFinite(v) ? v : 0;
+      }
+
       function fit() {
         // visualViewport is the truly visible area — the one measurement that
         // excludes iOS Safari's toolbars. innerWidth/Height is the fallback.
         var vv = window.visualViewport;
-        mb.style.width = Math.round(vv ? vv.width : window.innerWidth) + "px";
-        mb.style.height = Math.round(vv ? vv.height : window.innerHeight) + "px";
+        var w = Math.round(vv ? vv.width : window.innerWidth);
+        var h = Math.round(vv ? vv.height : window.innerHeight);
+        // Keep clear of the home indicator and the notch. viewport-fit=cover
+        // lets the page reach into them, which would bury the bottom row of
+        // the game — the ground, the drums and the version stamp — under the
+        // indicator bar. Shrinking instead letterboxes those strips.
+        w -= inset("--sal") + inset("--sar");
+        h -= inset("--sab");
+        // A hidden or not-yet-laid-out page reports ~0. Writing that through
+        // would freeze the canvas at a useless size, since miniquad reads it
+        // once at init; leave it alone and let boot() keep waiting.
+        if (w < 16 || h < 16) return;
+        mb.style.width = Math.round(w) + "px";
+        mb.style.height = Math.round(h) + "px";
       }
       fit();
       window.addEventListener("resize", fit);

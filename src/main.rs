@@ -1922,9 +1922,9 @@ impl Game {
         draw_text(
             concat!("v", env!("CARGO_PKG_VERSION")),
             8.0 * k,
-            screen_height() - 8.0 * k,
+            screen_height() - 10.0 * k,
             16.0 * k,
-            Color::new(0.45, 0.45, 0.55, 0.55),
+            Color::new(0.55, 0.55, 0.66, 0.75),
         );
 
         if self.high_score > 0 {
