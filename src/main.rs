@@ -321,6 +321,7 @@ struct Game {
     mute_music: bool,
     boss_music: bool, // which track is currently looping
     touch_ui: bool,   // a touch has been seen: draw the on-screen controls
+    screen: Vec2,     // geometry the world is currently laid out against
 }
 
 impl Game {
@@ -366,6 +367,7 @@ impl Game {
             mute_music: false,
             boss_music: false,
             touch_ui: false,
+            screen: Vec2::ZERO,
         }
     }
 
@@ -510,6 +512,59 @@ impl Game {
         }
     }
 
+    // The screen can change size mid-game: a phone rotating, a desktop window
+    // being resized, or Safari collapsing its toolbars. Everything placed in
+    // absolute coordinates was laid out against the old geometry — the drums
+    // in particular sit on a ground line computed from the old height, so
+    // after a rotation they hang in mid-air (or sink) and any drum past the
+    // new width is stranded off-screen. Rescale the world to match.
+    fn handle_resize(&mut self) {
+        let now = vec2(screen_width(), screen_height());
+        if self.screen.x <= 0.0 || self.screen.y <= 0.0 {
+            self.screen = now; // first frame: nothing to move yet
+            return;
+        }
+        if (now.x - self.screen.x).abs() < 0.5 && (now.y - self.screen.y).abs() < 0.5 {
+            return;
+        }
+        let s = vec2(now.x / self.screen.x, now.y / self.screen.y);
+        self.screen = now;
+
+        self.player_x *= s.x;
+
+        // Drums are re-seated on the *new* ground line rather than scaled, so
+        // they always rest exactly on the surface however the screen changed.
+        let gy = ground_y() - DRUM_H + 6.0;
+        for d in &mut self.drums {
+            d.pos.x *= s.x;
+            d.home_y = gy;
+            if d.falling || d.carried {
+                d.pos.y *= s.y; // still in the air: keep its relative height
+            } else {
+                d.pos.y = gy;
+            }
+        }
+
+        for b in &mut self.bugs {
+            b.pos *= s;
+            b.base_x *= s.x;
+            b.amp *= s.x;
+            b.dive_y *= s.y;
+        }
+        for b in &mut self.bullets {
+            b.pos *= s;
+        }
+        for e in &mut self.enemy_shots {
+            e.pos *= s;
+        }
+        for p in &mut self.powerups {
+            p.pos *= s;
+        }
+        for p in &mut self.particles {
+            p.pos *= s;
+        }
+    }
+
     // -- Reset for a fresh run ----------------------------------------------
     fn start(&mut self) {
         self.phase = Phase::Playing;
@@ -529,6 +584,7 @@ impl Game {
         self.bugs.clear();
         self.particles.clear();
         self.powerups.clear();
+        self.screen = vec2(screen_width(), screen_height());
         self.spawn_drums();
         self.next_wave();
     }
@@ -2049,6 +2105,7 @@ async fn main() {
             #[cfg(not(target_arch = "wasm32"))]
             break;
         }
+        game.handle_resize();   // rotation / window resize (any phase)
         game.handle_ui_click(); // audio toggle buttons (any phase)
         if is_key_pressed(KeyCode::M) {
             game.mute_sfx = !game.mute_sfx; // keyboard shortcut for the SFX button

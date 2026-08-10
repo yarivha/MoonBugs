@@ -15,6 +15,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   one measurement that excludes the toolbars, and re-fitted on resize,
   rotation, and the toolbar collapsing. The web caption is also hidden on
   touch devices, where it lay across the drums.
+- **Rotating the phone mid-game left the barrels floating or off-screen.** The
+  drums are placed once in absolute coordinates, so after a rotation they still
+  sat on the ground line of the *old* screen height — hanging in space — and any
+  drum past the new width was stranded outside it. The world is now re-anchored
+  whenever the screen size changes (rotation, a resized window, Safari's
+  toolbars collapsing): drums are re-seated on the current ground line, and
+  everything else in flight is rescaled to the new geometry.
 - **The version stamp sat under the iPhone home indicator.** `viewport-fit=cover`
   lets the page reach into the safe areas, burying the bottom row of the game.
   The canvas now subtracts the safe-area insets and is anchored to the top, so
