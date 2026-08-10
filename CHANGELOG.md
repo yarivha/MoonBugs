@@ -6,6 +6,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.8.0] - 2026-08-09
 
+### Fixed
+- **On a phone in portrait the score line and the barrels were cut off.** The
+  canvas was sized with `100vh`, which on iOS Safari is the viewport *without*
+  the browser toolbars — so the canvas stood taller than the visible area and
+  the centred layout cropped an equal slice off the top (the HUD) and the
+  bottom (the drums and the ground). It is now pinned to `visualViewport`, the
+  one measurement that excludes the toolbars, and re-fitted on resize,
+  rotation, and the toolbar collapsing. The web caption is also hidden on
+  touch devices, where it lay across the drums.
+
 ### Added
 - **A big moon over the top-left of the sky**, as in the 1983 original —
   a cratered disc with a lit limb and a faint halo, drawn behind everything

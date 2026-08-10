@@ -22,10 +22,16 @@
        canvas.width = clientWidth * dpr and re-runs it on window resize. */
     canvas {
       display: block; outline: none;
-      /* Fill the screen. The game lays itself out from screen_width()/
-         screen_height() and scales its UI to fit, so any aspect works and a
-         phone gets the whole display rather than a letterboxed strip. */
-      width: 100vw; height: 100vh;
+      /* Fill the visible screen. The game lays itself out from screen_width()/
+         screen_height() and scales its UI to fit, so any aspect works.
+
+         Height is the fiddly part on phones: 100vh on iOS Safari is the
+         viewport WITHOUT the browser toolbars, so a 100vh canvas is taller
+         than what you can see and the centred layout crops the top (score)
+         and bottom (drums and ground). dvh tracks the actual visible height;
+         the script below also sets an exact pixel height for browsers without
+         it, and re-fits on rotation. */
+      width: 100vw; height: 100vh; height: 100dvh;
       touch-action: none;          /* no scroll/pinch stealing the controls */
       -webkit-tap-highlight-color: transparent;
     }
@@ -35,6 +41,9 @@
       margin: 0; padding: 4px 12px; text-align: center;
       font-size: 12px; opacity: .5; pointer-events: none;
     }
+    /* On a touch device the canvas fills the screen, so this caption would lie
+       across the drums. The menu already explains the controls there. */
+    @media (pointer: coarse) { #hint { display: none; } }
   </style>
 </head>
 <body>
@@ -60,6 +69,29 @@
       var mb = document.getElementById("glcanvas");
       mb.focus();
       document.addEventListener("click", function () { mb.focus(); });
+
+      // Pin the canvas to the *visible* viewport in real pixels. Needed for
+      // iOS Safari, where 100vh overshoots by the toolbar height; harmless
+      // everywhere else. Re-run on resize and rotation — the macroquad bundle
+      // watches the canvas box and resizes its backing store to match.
+      function fit() {
+        // visualViewport is the truly visible area — the one measurement that
+        // excludes iOS Safari's toolbars. innerWidth/Height is the fallback.
+        var vv = window.visualViewport;
+        mb.style.width = Math.round(vv ? vv.width : window.innerWidth) + "px";
+        mb.style.height = Math.round(vv ? vv.height : window.innerHeight) + "px";
+      }
+      fit();
+      window.addEventListener("resize", fit);
+      window.addEventListener("orientationchange", function () {
+        setTimeout(fit, 150); // iOS reports the new size a beat after rotating
+      });
+      if (window.visualViewport) {
+        // Safari collapses and expands its toolbars without always firing a
+        // window resize; the visual viewport always reports it.
+        window.visualViewport.addEventListener("resize", fit);
+        window.visualViewport.addEventListener("scroll", fit);
+      }
 
       // Don't start until the canvas actually has a laid-out box. miniquad
       // reads its size at init, so booting in a page that hasn't been laid out
