@@ -1350,6 +1350,7 @@ impl Game {
     fn draw(&self) {
         clear_background(Color::new(0.03, 0.03, 0.08, 1.0));
         self.draw_stars();
+        self.draw_moon();
         self.draw_ground();
 
         match self.phase {
@@ -1526,6 +1527,43 @@ impl Game {
                 s.size,
                 Color::new(1.0, 1.0, 1.0, 0.2 + 0.6 * tw),
             );
+        }
+    }
+
+    // A big moon low in the sky over the top-left, as in the 1983 original.
+    // Drawn behind everything and kept dim: the HUD sits on top of it, so the
+    // disc has to read as scenery without fighting the score text for contrast.
+    fn draw_moon(&self) {
+        let r = (screen_width().min(screen_height()) * 0.15).max(40.0);
+        // Fully on-screen horizontally, and low enough that the HUD block
+        // (score/best/drums/bombs, which ends around y=120 at design scale)
+        // sits above it rather than on top of it.
+        let cx = r * 1.05;
+        let cy = 126.0 * ui_scale() + r * 0.78;
+
+        // Faint halo, so the disc doesn't sit on the starfield as a hard cut.
+        draw_circle(cx, cy, r * 1.3, Color::new(0.45, 0.5, 0.7, 0.045));
+        draw_circle(cx, cy, r * 1.12, Color::new(0.45, 0.5, 0.7, 0.05));
+
+        // Body, then a slightly brighter sunlit edge up and to the left.
+        draw_circle(cx, cy, r, Color::new(0.27, 0.28, 0.35, 1.0));
+        draw_circle_lines(cx, cy, r, r * 0.05, Color::new(0.46, 0.47, 0.56, 0.9));
+        draw_circle(cx - r * 0.18, cy - r * 0.2, r * 0.78, Color::new(0.31, 0.32, 0.40, 0.7));
+
+        // Craters: fixed offsets and radii as fractions of r, so the face is
+        // identical at every resolution instead of reshuffling per device.
+        for (dx, dy, cr) in [
+            (-0.34_f32, -0.30_f32, 0.20_f32),
+            (0.28, -0.36, 0.13),
+            (0.10, 0.22, 0.25),
+            (-0.52, 0.30, 0.12),
+            (0.48, 0.28, 0.15),
+            (-0.05, -0.62, 0.09),
+        ] {
+            let (px, py, pr) = (cx + dx * r, cy + dy * r, cr * r);
+            draw_circle(px, py, pr, Color::new(0.25, 0.26, 0.32, 0.9));
+            // A lit lower-right lip gives each crater a bit of depth.
+            draw_circle(px + pr * 0.16, py + pr * 0.16, pr * 0.82, Color::new(0.33, 0.34, 0.42, 0.55));
         }
     }
 

@@ -4,6 +4,15 @@ All notable changes to Moon Bugs are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-08-09
+
+### Added
+- **A big moon over the top-left of the sky**, as in the 1983 original —
+  a cratered disc with a lit limb and a faint halo, drawn behind everything
+  and sized from the screen so it looks the same on a phone as on a monitor.
+  It sits below the HUD block rather than under it, and is deliberately dim,
+  so the score and drum counts stay readable.
+
 ## [0.7.1] - 2026-08-08
 
 ### Fixed
@@ -182,6 +191,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Waves no longer stall: fleeing bugs that leave the top of the screen are
   retired, so the "all bugs cleared" check fires correctly.
 
+[0.8.0]: https://github.com/yarivha/MoonBugs/releases/tag/v0.8.0
 [0.7.1]: https://github.com/yarivha/MoonBugs/releases/tag/v0.7.1
 [0.7.0]: https://github.com/yarivha/MoonBugs/releases/tag/v0.7.0
 [0.6.0]: https://github.com/yarivha/MoonBugs/releases/tag/v0.6.0

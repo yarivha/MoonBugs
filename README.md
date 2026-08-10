@@ -135,6 +135,7 @@ python3 tools/gen_icon.py   # writes assets/icon.png + assets/icon_*.rgba
 
 ## Modern twists over the 1983 original
 
+- **A big cratered moon** hanging over the lunar horizon, like the original's.
 - **Escalating waves** — more bugs, faster, with armored variants from wave 3.
 - **Boss every 10th wave** — a big, horned, high-HP bug with a health bar that
   bumps the buggy for damage; destroy it (it drops a guaranteed extra life) to
