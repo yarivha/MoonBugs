@@ -4,17 +4,9 @@ All notable changes to Moon Bugs are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.8.0] - 2026-08-09
+## [0.8.1] - 2026-08-10
 
 ### Fixed
-- **On a phone in portrait the score line and the barrels were cut off.** The
-  canvas was sized with `100vh`, which on iOS Safari is the viewport *without*
-  the browser toolbars — so the canvas stood taller than the visible area and
-  the centred layout cropped an equal slice off the top (the HUD) and the
-  bottom (the drums and the ground). It is now pinned to `visualViewport`, the
-  one measurement that excludes the toolbars, and re-fitted on resize,
-  rotation, and the toolbar collapsing. The web caption is also hidden on
-  touch devices, where it lay across the drums.
 - **Rotating the phone mid-game left the barrels floating or off-screen.** The
   drums are placed once in absolute coordinates, so after a rotation they still
   sat on the ground line of the *old* screen height — hanging in space — and any
@@ -27,6 +19,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   The canvas now subtracts the safe-area insets and is anchored to the top, so
   the leftover strip falls where the indicator actually is, and the version is
   a little higher and brighter.
+
+## [0.8.0] - 2026-08-09
+
+### Fixed
+- **On a phone in portrait the score line and the barrels were cut off.** The
+  canvas was sized with `100vh`, which on iOS Safari is the viewport *without*
+  the browser toolbars — so the canvas stood taller than the visible area and
+  the centred layout cropped an equal slice off the top (the HUD) and the
+  bottom (the drums and the ground). It is now pinned to `visualViewport`, the
+  one measurement that excludes the toolbars, and re-fitted on resize,
+  rotation, and the toolbar collapsing. The web caption is also hidden on
+  touch devices, where it lay across the drums.
 
 ### Added
 - **A big moon over the top-left of the sky**, as in the 1983 original —
@@ -213,6 +217,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Waves no longer stall: fleeing bugs that leave the top of the screen are
   retired, so the "all bugs cleared" check fires correctly.
 
+[0.8.1]: https://github.com/yarivha/MoonBugs/releases/tag/v0.8.1
 [0.8.0]: https://github.com/yarivha/MoonBugs/releases/tag/v0.8.0
 [0.7.1]: https://github.com/yarivha/MoonBugs/releases/tag/v0.7.1
 [0.7.0]: https://github.com/yarivha/MoonBugs/releases/tag/v0.7.0
